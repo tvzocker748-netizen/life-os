@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -248,6 +248,8 @@ async function loadAll() {
   if (!Array.isArray(S.settings.incomeCats) || !S.settings.incomeCats.length) S.settings.incomeCats = INC_CATS.slice();
   S.settings.budgets = S.settings.budgets || {};
   S.settings.dismissed = S.settings.dismissed || {};
+  S.pin = meta.find(m => m.id === 'pin') || null;
+  S.reviews = meta.filter(m => m.kind === 'review');
   const timer = meta.find(m => m.id === 'timer');
   TIMER.state = timer || null;
   dataVer++;
@@ -2480,6 +2482,367 @@ A.habitForArea = d => {
   setTimeout(() => { const s = $('select[name="area"]', topSheet()?.el); if (s) { s.value = d.area; s.dispatchEvent(new Event('change', { bubbles: true })); } }, 30);
 };
 /* =========================================================
+   VERSION 1.2: Heute verfügbar, Schnellerfassung, PIN-Sperre,
+   Kalender-Termine (.ics), geführter Wochen-Review
+   ========================================================= */
+
+/* ---------------- Heute verfügbar ---------------- */
+function availableToday() {
+  const t = today(), cm = curMonth(), endM = monthEnd(cm);
+  const a = avgStats(3);
+  const cur = monthStats(cm);
+  const saveRate = (S.settings.saveRate ?? 10) / 100;
+  const income = Math.max(a.income || 0, cur.income || 0);
+  if (!income) return null;
+  // Fixkosten, die bis Monatsende noch abgebucht werden (noch nicht gebucht)
+  const plannedRec = sum(S.recurring.filter(r => r.active && r.type === 'expense' && r.nextDate > t && r.nextDate <= endM), r => r.amount);
+  const plannedSub = sum(S.subscriptions.filter(s => s.active && s.nextDate > t && s.nextDate <= endM), s => s.amount);
+  const saveMonthly = income * saveRate;
+  const left = income - cur.expense - plannedRec - plannedSub - saveMonthly;
+  const daysLeft = daysInMonth(+cm.slice(0, 4), +cm.slice(5, 7) - 1) - (+t.slice(8, 10)) + 1;
+  return { perDay: left / daysLeft, left, daysLeft, basis: a.basis };
+}
+
+function availCardHtml() {
+  if (!S.transactions.length) return '';
+  const v = availableToday();
+  if (!v) return '';
+  const neg = v.perDay < 0;
+  return `<div class="card avail ${neg ? 'neg' : ''}">
+    <div class="between"><span class="card-t">Heute verfügbar</span><span class="small muted">noch ${v.daysLeft} ${v.daysLeft === 1 ? 'Tag' : 'Tage'}</span></div>
+    <div class="big-num avail-num">${neg ? '−' : ''}${eur0(Math.abs(v.perDay))}</div>
+    <div class="small muted">${neg
+      ? 'Dein Monatsbudget ist aufgebraucht. Heute nur das Nötigste ausgeben.'
+      : `Nach Fixkosten und ${S.settings.saveRate ?? 10} % Sparrate. Basis: ${esc(v.basis)}.`}</div>
+    <button class="btn tinted small" data-act="quickEntry" style="margin-top:12px">＋ Schnell erfassen</button>
+  </div>`;
+}
+
+A.editSaveRate = () => formSheet({
+  title: 'Sparziel',
+  fields: [{ key: 'rate', label: 'Anteil am Einkommen', type: 'seg', numeric: true, options: [5, 10, 15, 20, 25].map(n => ({ v: n, l: n + ' %' })), hint: 'Dieser Anteil wird bei „Heute verfügbar“ als Rücklage abgezogen.' }],
+  values: { rate: S.settings.saveRate ?? 10 },
+  onSave: async v => { S.settings.saveRate = +v.rate; await saveSettings(); render(); refreshSheets(); toast('Sparziel gespeichert'); }
+});
+
+/* ---------------- Schnellerfassung ---------------- */
+let QE = { amt: '', cat: '', sh: null };
+
+function quickTemplates() {
+  const map = {};
+  S.transactions.forEach(t => {
+    if (t.type !== 'expense' || t.recurringId || t.subId) return;
+    const amount = round2(t.amount), note = (t.note || '').trim();
+    const k = [t.category, note, amount].join('|');
+    map[k] = map[k] || { category: t.category, note, amount, n: 0, last: 0 };
+    map[k].n++;
+    map[k].last = Math.max(map[k].last, t.createdAt || 0);
+  });
+  return Object.values(map).sort((a, b) => b.n - a.n || b.last - a.last).slice(0, 6);
+}
+
+function quickCats() {
+  const cnt = {};
+  S.transactions.forEach(t => { if (t.type === 'expense') cnt[t.category] = (cnt[t.category] || 0) + 1; });
+  return S.settings.expenseCats.slice().sort((a, b) => (cnt[b] || 0) - (cnt[a] || 0)).slice(0, 8);
+}
+
+function quickEntryHtml() {
+  const tpl = quickTemplates(), cats = quickCats();
+  const shown = QE.amt ? QE.amt : '0';
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'];
+  return `
+    <div class="qe-amount"><span>${esc(shown)}</span><span class="qe-cur">€</span></div>
+    ${tpl.length ? `<div class="list-h"><span>Vorlagen · einmal antippen</span></div>
+      <div class="qe-chips">${tpl.map((x, i) => `<button class="qe-chip" data-act="qeTpl" data-i="${i}">${catIcon(x.category)} ${esc(x.note || x.category)} <b>${eur0(x.amount)}</b></button>`).join('')}</div>` : ''}
+    <div class="list-h"><span>Kategorie</span></div>
+    <div class="qe-chips">${cats.map(c => `<button class="qe-chip ${QE.cat === c ? 'on' : ''}" data-act="qeCat" data-c="${esc(c)}">${catIcon(c)} ${esc(c)}</button>`).join('')}</div>
+    <div class="qe-pad">${keys.map(k => `<button data-act="qeKey" data-k="${k}" aria-label="${k === '⌫' ? 'Löschen' : k}">${k}</button>`).join('')}</div>
+    <button class="btn block" data-act="qeSave" style="margin-top:14px">Speichern</button>`;
+}
+
+function qeRefresh() {
+  if (QE.sh && sheetStack.includes(QE.sh)) QE.sh.setBody(quickEntryHtml());
+}
+
+async function saveQuick({ amount, category, note = '' }) {
+  if (!(amount > 0)) { toast('Bitte zuerst einen Betrag eingeben'); return; }
+  await put('transactions', { id: uid(), type: 'expense', amount: round2(amount), category, note, date: today(), createdAt: Date.now() });
+  closeAllSheets();
+  render();
+  toast(`${eur(amount)} gespeichert`);
+}
+
+A.quickEntry = () => {
+  QE = { amt: '', cat: quickCats()[0] || 'Sonstiges', sh: null };
+  QE.sh = openSheet({ title: 'Schnell erfassen', body: quickEntryHtml(), tall: true });
+};
+A.qeKey = d => {
+  const k = d.k;
+  if (k === '⌫') QE.amt = QE.amt.slice(0, -1);
+  else if (k === ',') { if (!QE.amt) QE.amt = '0'; if (!QE.amt.includes(',')) QE.amt += ','; }
+  else {
+    if (QE.amt === '0') QE.amt = '';
+    const [intPart, dec] = QE.amt.split(',');
+    if (dec !== undefined) { if (dec.length < 2) QE.amt += k; }
+    else if (intPart.length < 6) QE.amt += k;
+  }
+  qeRefresh();
+};
+A.qeCat = d => { QE.cat = d.c; qeRefresh(); };
+A.qeSave = () => saveQuick({ amount: parseNum(QE.amt), category: QE.cat });
+A.qeTpl = d => {
+  const x = quickTemplates()[+d.i];
+  if (x) saveQuick({ amount: x.amount, category: x.category, note: x.note });
+};
+
+/* ---------------- Wochen-Review ---------------- */
+let RV = null;
+const RV_LAST = 3;
+
+function reviewThisWeek() { return S.reviews.find(r => r.week === weekStart(today())) || null; }
+
+function reviewCardHtml() {
+  if (reviewThisWeek()) return '';
+  return `<div class="card tap" data-act="reviewStart">
+    <div class="between"><span class="card-t">Wochen-Review</span><span class="chev">${ic('chevR', 'sm')}</span></div>
+    <div style="font-size:17px;font-weight:600;margin-top:4px">Schließe deine Woche in 5 Minuten ab</div>
+    <div class="small muted" style="margin-top:2px">Rückblick, Gedanken und deine 3 wichtigsten Ziele für die nächste Woche.</div>
+  </div>`;
+}
+
+A.reviewStart = () => {
+  RV = { step: 0, good: '', bad: '', focus: [], wk: weekStart(today()), sh: null };
+  RV.sh = openSheet({ title: 'Wochen-Review', body: reviewHtml(), tall: true });
+};
+
+function rvSync() {
+  const g = $('#rvGood'), b = $('#rvBad');
+  if (g) RV.good = g.value;
+  if (b) RV.bad = b.value;
+}
+
+function reviewHtml() {
+  const t = today();
+  const dots = `<div class="rv-steps">${[0, 1, 2, 3].map(i => `<i class="${i === RV.step ? 'on' : ''}"></i>`).join('')}</div>`;
+  let body = '';
+  if (RV.step === 0) {
+    const from = addDays(t, -6);
+    const w = rangeStats(from, t);
+    const weekAvg = avgStats(3).expense * 12 / 52;
+    const hr = habitsRate(from, t);
+    body = `<div class="list-h"><span>Die letzten 7 Tage</span></div>
+      <div class="card">
+        <div class="kv"><span>Einnahmen</span><span class="num pos">${eur0(w.income)}</span></div>
+        <div class="kv"><span>Ausgaben</span><span class="num">${eur0(w.expense)}</span></div>
+        <div class="kv"><span>Ø Ausgaben pro Woche</span><span class="num">${weekAvg > 0 ? eur0(weekAvg) : '–'}</span></div>
+        ${hr != null ? `<div class="kv"><span>Gewohnheiten erfüllt</span><span class="num">${pct(hr * 100)}</span></div>` : ''}
+      </div>
+      <p class="small muted">${weekAvg <= 0 ? 'Für einen Vergleich fehlen noch Daten.' : w.expense > weekAvg ? `Du lagst diese Woche ${eur0(w.expense - weekAvg)} über deinem Wochen-Durchschnitt.` : 'Du lagst diese Woche im Rahmen deines Durchschnitts.'}</p>`;
+  } else if (RV.step === 1) {
+    body = `<div class="list-h"><span>Was lief gut?</span></div>
+      <div class="card"><textarea id="rvGood" class="rv-ta" rows="4" placeholder="z. B. Früh aufgestanden, nichts Spontanes gekauft …">${esc(RV.good)}</textarea></div>
+      <div class="list-h"><span>Was würdest du anders machen?</span></div>
+      <div class="card"><textarea id="rvBad" class="rv-ta" rows="4" placeholder="Eine Sache für die nächste Woche …">${esc(RV.bad)}</textarea></div>`;
+  } else if (RV.step === 2) {
+    const gs = activeGoals().slice().sort(by(g => goalStatus(g).key === 'behind' ? 0 : 1));
+    body = gs.length
+      ? `<div class="list-h"><span>Deine Ziele · bis zu 3 auswählen</span></div>
+         <div class="list">${gs.map(g => {
+           const on = RV.focus.includes(g.id);
+           return `<button class="row" data-act="rvFocus" data-id="${g.id}"><div class="row-main"><div class="row-t">${esc(g.title)}</div><div class="row-s">${esc(goalStatus(g).label)}</div></div><span class="rv-mark">${on ? '✓' : ''}</span></button>`;
+         }).join('')}</div>`
+      : `<div class="empty"><div class="em-ico">🎯</div><div>Lege zuerst ein Ziel an, dann kannst du es hier für die nächste Woche priorisieren.</div></div>`;
+  } else {
+    const focus = RV.focus.map(id => S.goals.find(g => g.id === id)).filter(Boolean);
+    body = `<div class="list-h"><span>Zusammenfassung</span></div>
+      <div class="card">
+        <div class="card-t">Gut lief</div><p style="margin:4px 0 12px">${esc(RV.good.trim() || '–')}</p>
+        <div class="card-t">Anders machen</div><p style="margin:4px 0 12px">${esc(RV.bad.trim() || '–')}</p>
+        <div class="card-t">Fokus nächste Woche</div>
+        ${focus.length ? focus.map(g => `<p style="margin:4px 0">🎯 ${esc(g.title)}</p>`).join('') : '<p style="margin:4px 0" class="muted">Keine Ziele ausgewählt</p>'}
+      </div>`;
+  }
+  const nav = `<div class="btn-row" style="margin-top:16px">${RV.step > 0 ? '<button class="btn gray" data-act="rvBack">Zurück</button>' : ''}<button class="btn" data-act="${RV.step === RV_LAST ? 'reviewSave' : 'rvNext'}">${RV.step === RV_LAST ? 'Speichern' : 'Weiter'}</button></div>`;
+  return dots + body + nav;
+}
+
+A.rvNext = () => { rvSync(); RV.step = Math.min(RV_LAST, RV.step + 1); RV.sh.setBody(reviewHtml()); };
+A.rvBack = () => { rvSync(); RV.step = Math.max(0, RV.step - 1); RV.sh.setBody(reviewHtml()); };
+A.rvFocus = d => {
+  const id = d.id;
+  if (RV.focus.includes(id)) RV.focus = RV.focus.filter(x => x !== id);
+  else if (RV.focus.length < 3) RV.focus = [...RV.focus, id];
+  else { toast('Maximal 3 Ziele'); return; }
+  RV.sh.setBody(reviewHtml());
+};
+A.reviewSave = async () => {
+  rvSync();
+  const rec = {
+    id: 'review-' + RV.wk, kind: 'review', week: RV.wk,
+    good: RV.good.trim(), bad: RV.bad.trim(),
+    focus: RV.focus.map(id => ({ id, title: (S.goals.find(g => g.id === id) || {}).title || '' })),
+    createdAt: Date.now()
+  };
+  await DB.put('meta', rec);
+  S.reviews = S.reviews.filter(r => r.id !== rec.id).concat(rec);
+  if (RV.sh) RV.sh.close();
+  render();
+  toast('Wochen-Review gespeichert ✅');
+};
+
+/* ---------------- PIN-Sperre ---------------- */
+let LK = { active: false, mode: 'unlock', buf: '', first: '', err: '' };
+const pinSupported = () => !!(window.crypto && crypto.subtle);
+
+async function pinHash(pin, salt) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${salt}:${pin}:lifeos-pin`));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function lockInit() {
+  if (!S.pin) return;
+  LK = { active: true, mode: 'unlock', buf: '', first: '', err: '' };
+  renderLock();
+}
+
+function lockHtml() {
+  const title = LK.mode === 'unlock' ? 'LIFE OS entsperren' : LK.mode === 'set1' ? 'Neue PIN festlegen' : 'PIN wiederholen';
+  const dots = [0, 1, 2, 3].map(i => `<i class="${i < LK.buf.length ? 'on' : ''}"></i>`).join('');
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
+  return `<div class="lk-ico">🔒</div><div class="lk-t">${title}</div>
+    <div class="lk-dots">${dots}</div>
+    <div class="lk-err">${esc(LK.err)}</div>
+    <div class="lk-pad">${keys.map(k => k ? `<button data-act="lkKey" data-k="${k}" aria-label="${k === '⌫' ? 'Löschen' : k}">${k}</button>` : '<span></span>').join('')}</div>
+    ${LK.mode === 'unlock' ? '' : '<button class="link" data-act="lkCancel">Abbrechen</button>'}`;
+}
+
+function renderLock() {
+  const el = $('#lock');
+  if (!el) return;
+  el.hidden = !LK.active;
+  el.innerHTML = LK.active ? lockHtml() : '';
+}
+
+A.pinSetup = () => {
+  if (!pinSupported()) { toast('Die PIN-Sperre braucht eine sichere Verbindung (https)'); return; }
+  closeAllSheets();
+  LK = { active: true, mode: 'set1', buf: '', first: '', err: '' };
+  renderLock();
+};
+A.pinOff = async () => {
+  if (!await confirmDlg('Die PIN-Sperre wird ausgeschaltet. Deine Daten bleiben unverändert.', { title: 'PIN-Sperre ausschalten?', ok: 'Ausschalten', danger: true })) return;
+  await DB.del('meta', 'pin');
+  S.pin = null;
+  refreshSheets();
+  toast('PIN-Sperre ausgeschaltet');
+};
+A.lkCancel = () => { LK = { active: false, mode: 'unlock', buf: '', first: '', err: '' }; renderLock(); };
+A.lkKey = d => {
+  if (d.k === '⌫') LK.buf = LK.buf.slice(0, -1);
+  else if (LK.buf.length < 4) LK.buf += d.k;
+  LK.err = '';
+  renderLock();
+  if (LK.buf.length === 4) setTimeout(lockComplete, 140);
+};
+
+async function lockComplete() {
+  const pin = LK.buf;
+  LK.buf = '';
+  if (LK.mode === 'unlock') {
+    const ok = S.pin && (await pinHash(pin, S.pin.salt)) === S.pin.hash;
+    if (ok) LK.active = false;
+    else LK.err = 'Falsche PIN. Versuch es noch einmal.';
+    renderLock();
+    return;
+  }
+  if (LK.mode === 'set1') { LK.first = pin; LK.mode = 'set2'; LK.err = ''; renderLock(); return; }
+  if (pin !== LK.first) { LK.mode = 'set1'; LK.first = ''; LK.err = 'Die beiden PINs stimmen nicht überein.'; renderLock(); return; }
+  const salt = uid();
+  const rec = { id: 'pin', salt, hash: await pinHash(pin, salt) };
+  await DB.put('meta', rec);
+  S.pin = rec;
+  LK = { active: false, mode: 'unlock', buf: '', first: '', err: '' };
+  renderLock();
+  refreshSheets();
+  toast('PIN-Sperre aktiviert 🔒');
+}
+
+// Beim Verlassen der App sofort wieder sperren
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && S.pin) { LK = { active: true, mode: 'unlock', buf: '', first: '', err: '' }; renderLock(); }
+});
+
+/* ---------------- Termine für den iPhone-Kalender (.ics) ---------------- */
+const icsEsc = s => String(s ?? '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+
+function icsFold(line) {
+  const enc = new TextEncoder(), out = [];
+  let cur = '', n = 0, limit = 75;
+  for (const ch of line) {
+    const b = enc.encode(ch).length;
+    if (n + b > limit) { out.push(cur); cur = ch; n = b; limit = 74; }
+    else { cur += ch; n += b; }
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
+
+function calendarEvents() {
+  const t = today(), end12 = addMonths(t, 12), ev = [];
+  activeGoals().filter(g => g.deadline && g.deadline >= t).forEach(g =>
+    ev.push({ uid: 'goal-' + g.id, date: g.deadline, time: '0900', summary: `🎯 Zielfrist: ${g.title}`, desc: 'Ziel aus LIFE OS', alarm: 1440 }));
+  openTasks().filter(x => x.due && x.due >= t).forEach(x =>
+    ev.push({ uid: 'task-' + x.id, date: x.due, time: '0900', summary: `📋 ${x.title}`, desc: 'Aufgabe aus LIFE OS', alarm: 60 }));
+  S.subscriptions.filter(s => s.active && s.nextDate >= t).forEach(s => {
+    let d = s.nextDate, n = 0;
+    while (d <= end12 && n++ < 24) {
+      ev.push({ uid: `sub-${s.id}-${d}`, date: d, time: '1000', summary: `🔁 ${s.name} wird verlängert`, desc: `${eur(s.amount)} – Abo prüfen oder kündigen`, alarm: 2880 });
+      const nd = advance(d, s.cycle, pd(s.nextDate).getDate());
+      if (nd <= d) break;
+      d = nd;
+    }
+  });
+  const sunday = addDays(t, (7 - pd(t).getDay()) % 7);
+  ev.push({ uid: 'weekly-review', date: sunday, time: '1800', summary: '🧭 Wochen-Review (5 Min)', desc: 'Öffne LIFE OS und schließe deine Woche ab.', alarm: 0, rrule: 'FREQ=WEEKLY;BYDAY=SU' });
+  ev.push({ uid: 'backup-reminder', date: addMonthKey(curMonth(), 1) + '-01', time: '1000', summary: '🛡️ Datensicherung LIFE OS', desc: 'Backup erstellen und in iCloud Drive oder Google Drive ablegen.', alarm: 0, rrule: 'FREQ=MONTHLY;BYMONTHDAY=1' });
+  return ev;
+}
+
+function buildIcs() {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//LIFE OS//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:LIFE OS'];
+  calendarEvents().forEach(e => {
+    L.push('BEGIN:VEVENT', `UID:${e.uid}@life-os.local`, `DTSTAMP:${stamp}`,
+      `DTSTART:${e.date.replace(/-/g, '')}T${e.time}00`, 'DURATION:PT30M',
+      `SUMMARY:${icsEsc(e.summary)}`, `DESCRIPTION:${icsEsc(e.desc)}`);
+    if (e.rrule) L.push(`RRULE:${e.rrule}`);
+    L.push('BEGIN:VALARM', `TRIGGER:-PT${e.alarm}M`, 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc(e.summary)}`, 'END:VALARM', 'END:VEVENT');
+  });
+  L.push('END:VCALENDAR');
+  return L.map(icsFold).join('\r\n') + '\r\n';
+}
+
+A.calExport = async () => {
+  const count = calendarEvents().length;
+  const name = 'LIFE-OS-Termine.ics';
+  const file = new File([buildIcs()], name, { type: 'text/calendar' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'LIFE OS Termine' });
+      toast(`${count} Termine übergeben`);
+      return;
+    } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  downloadBlob(file, name);
+  toast(`${count} Termine exportiert – Datei öffnen und „Zu Kalender hinzufügen“ wählen`);
+};
+
+/* ---------------- Heute: Einbindung ---------------- */
+function featuresHomeHtml() {
+  return availCardHtml() + reviewCardHtml();
+}
+/* =========================================================
    START, EMPFEHLUNGEN, BERICHTE, EINSTELLUNGEN, BACKUP
    ========================================================= */
 
@@ -2618,6 +2981,7 @@ VIEWS.heute = () => {
     <button data-act="addTx" data-type="income"><span class="q-ico" style="background:var(--green-ui)">${ic('plus')}</span>Einnahme</button>
     <button data-act="addJournal"><span class="q-ico" style="background:var(--indigo)">${ic('edit')}</span>Tagebuch</button>
     <button data-act="addTask"><span class="q-ico" style="background:var(--orange-ui)">${ic('check')}</span>Aufgabe</button></div>`;
+  h += featuresHomeHtml();
   // Finanz-Überblick
   const cm = monthStats(curMonth());
   if (S.accounts.length || S.transactions.length) {
@@ -2936,8 +3300,12 @@ function settingsHtml() {
     <div class="list-h"><span>Finanzen</span></div><div class="list">
       ${row('editAssumptions', '📈', 'Annahmen für Prognosen', `Rendite ${n1(st.returnRate)} % · Inflation ${n1(st.inflation)} %`)}
       ${row('editBudgets', '🎯', 'Monatsbudgets', `${Object.keys(st.budgets || {}).length} Kategorien mit Budget`)}
+      ${row('editSaveRate', '🐖', 'Sparziel', `${st.saveRate ?? 10} % deines Einkommens als Rücklage`)}
       ${row('editCategories', '🏷️', 'Kategorien anpassen', `${st.expenseCats.length} Ausgaben- und ${st.incomeCats.length} Einnahmekategorien`)}
       ${row('recurringList', '🔁', 'Daueraufträge', `${S.recurring.filter(r => r.active).length} aktiv`)}</div>
+    <div class="list-h"><span>Sicherheit & Kalender</span></div><div class="list">
+      ${S.pin ? row('pinOff', '🔒', 'PIN-Sperre ausschalten', 'Aktiv · sperrt die App beim Verlassen') : row('pinSetup', '🔒', 'PIN-Sperre einrichten', 'Schützt Finanzen und Tagebuch · Face ID ist in Web-Apps nicht verfügbar')}
+      ${row('calExport', '📅', 'Termine in den iPhone-Kalender', 'Ziele, Aufgaben, Abo-Verlängerungen und Wochen-Review')}</div>
     <div class="list-h"><span>Datensicherung</span></div>
     <div class="hint-box ${lb && diffDays(iso(lb), today()) < (st.backupDays || 14) ? '' : 'orange'}">${lb ? `Letzte Sicherung: <b>${esc(lb.toLocaleDateString('de-DE'))}</b> (${esc(relIn(iso(lb)))})` : '<b>Noch keine Sicherung erstellt.</b>'}<br><span class="small">Deine Daten liegen ausschließlich auf diesem Gerät. Wird die App gelöscht oder das Handy getauscht, brauchst du ein Backup.</span></div>
     <div class="list">
@@ -3198,6 +3566,7 @@ async function init() {
     return;
   }
   applyTheme();
+  lockInit();
   try {
     const n = await processDue();
     if (S.accounts.length && !S.snapshots.some(s => s.id === curMonth())) await updateSnapshot();

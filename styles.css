@@ -495,3 +495,33 @@ input[type="range"] { flex: 1; accent-color: var(--accent); height: 30px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ---------- Version 1.2 ---------- */
+[hidden] { display: none !important; }
+.avail { background: linear-gradient(135deg, var(--accent-soft), var(--card)); }
+.avail-num { font-size: 40px; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
+.avail.neg .avail-num { color: var(--red); }
+.qe-amount { display: flex; align-items: baseline; justify-content: center; gap: 6px; padding: 14px 0 6px; font-size: 52px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.qe-cur { font-size: 26px; color: var(--text2); font-weight: 500; }
+.qe-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
+.qe-chip { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 999px; padding: 8px 12px; font-size: 14px; background: var(--fill); color: var(--text); min-height: 36px; }
+.qe-chip b { font-weight: 600; }
+.qe-chip.on { background: var(--accent); color: #fff; }
+.qe-chip:active, .qe-pad button:active, .lk-pad button:active { opacity: .6; }
+.qe-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.qe-pad button { height: 56px; border: 0; border-radius: 14px; background: var(--card); color: var(--text); font-size: 24px; font-weight: 500; box-shadow: var(--shadow); }
+#lock { position: fixed; inset: 0; z-index: 400; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 24px; }
+.lk-ico { font-size: 40px; }
+.lk-t { font-size: 20px; font-weight: 600; }
+.lk-dots { display: flex; gap: 18px; }
+.lk-dots i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--text2); }
+.lk-dots i.on { background: var(--text); border-color: var(--text); }
+.lk-err { color: var(--red); font-size: 14px; min-height: 20px; text-align: center; }
+.lk-pad { display: grid; grid-template-columns: repeat(3, 76px); gap: 16px 22px; }
+.lk-pad button { width: 76px; height: 76px; border: 0; border-radius: 50%; background: var(--fill); color: var(--text); font-size: 28px; font-weight: 500; }
+.lk-pad span { width: 76px; height: 76px; }
+.rv-steps { display: flex; justify-content: center; gap: 8px; margin: 4px 0 14px; }
+.rv-steps i { width: 8px; height: 8px; border-radius: 50%; background: var(--sep); }
+.rv-steps i.on { background: var(--accent); }
+.rv-ta { width: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; line-height: 1.45; resize: none; outline: none; padding: 12px 14px; }
+.rv-mark { color: var(--accent); font-size: 18px; font-weight: 700; width: 22px; text-align: center; flex: none; }
