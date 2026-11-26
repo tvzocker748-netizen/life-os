@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -301,7 +301,10 @@ function render(resetScroll = false) {
     v.innerHTML = `<div class="page"><div class="card mt"><b>Unerwarteter Fehler</b><p class="muted small mt">${esc(e.message)}</p><button class="btn block mt" data-act="tab" data-tab="heute">Zur Startseite</button></div></div>`;
   }
   $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === UI.tab));
-  if (resetScroll) window.scrollTo(0, 0); else window.scrollTo(0, y);
+  if (resetScroll) {
+    window.scrollTo(0, 0);
+    v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter');
+  } else window.scrollTo(0, y);
   onScroll();
   hideTip();
   if (typeof afterRender === 'function') afterRender();
@@ -333,6 +336,12 @@ const deltaHtml = (cur, prev, goodWhenUp = true, fmt = null) => {
   const good = goodWhenUp ? d > 0 : d < 0;
   return `<span class="delta ${good ? 'pos' : 'neg'}">${ic(d > 0 ? 'up' : 'down', 'sm')}${fmt ? fmt(cur - prev) : pct(Math.abs(d))}</span>`;
 };
+
+/* Zoomen per Zwei-Finger-Geste verhindern (Safari ignoriert user-scalable=no) */
+['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
+document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+/* Kein Kontextmenü (langes Drücken) außerhalb von Eingabefeldern */
+document.addEventListener('contextmenu', e => { if (!e.target.closest('input, textarea, .selectable')) e.preventDefault(); });
 
 /* Scroll-Verhalten der Navigationsleiste */
 function onScroll() { document.body.classList.toggle('scrolled', window.scrollY > 34); }
@@ -384,6 +393,7 @@ function showTip(el) {
   if (tipActive === el && !tip.hidden) { hideTip(); return; }
   hideTip();
   tipActive = el;
+  tipY = window.scrollY;
   el.classList.add('act');
   tip.innerHTML = el.dataset.tip;
   tip.hidden = false;
@@ -402,7 +412,8 @@ function hideTip() {
   if (tipActive) tipActive.classList.remove('act');
   tipActive = null;
 }
-window.addEventListener('scroll', hideTip, { passive: true });
+let tipY = 0;
+window.addEventListener('scroll', () => { if (tipActive && Math.abs(window.scrollY - tipY) > 12) hideTip(); }, { passive: true });
 
 /* ---------------- Bestätigungsdialog ---------------- */
 function confirmDlg(msg, { title = 'Bist du sicher?', ok = 'OK', cancel = 'Abbrechen', danger = false } = {}) {

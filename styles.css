@@ -107,6 +107,31 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+/* ---------- Verhalten wie eine native App ----------
+   Kein Zoomen per Doppeltipp, kein versehentliches Markieren,
+   kein Kopier-/Lupenmenü beim langen Drücken, kein Gummiband-Effekt. */
+html {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+  overflow-x: hidden;
+}
+body { overflow-x: hidden; overscroll-behavior: none; }
+img, svg { -webkit-user-drag: none; user-drag: none; }
+/* Nur dort, wo man wirklich Text eingibt oder kopieren möchte */
+input, textarea, select, .selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+/* Eingabefelder mindestens 16 px – sonst zoomt das iPhone beim Antippen */
+input, textarea, select { font-size: max(16px, 1em); }
+.sheet-backdrop, .alert-wrap, #tabbar, .nav { touch-action: none; }
+#view.enter .page { animation: viewIn .22s ease-out; }
+@keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--bg); }
 body {
   margin: 0;
@@ -416,8 +441,8 @@ input[type="range"] { flex: 1; accent-color: var(--accent); height: 30px; }
 .opt-h .in { font-weight: 600; font-size: 18px; }
 .pc-h { font-size: 13px; font-weight: 600; margin: 10px 0 4px; display: flex; align-items: center; gap: 6px; }
 .pc-row { display: flex; gap: 6px; align-items: center; padding: 4px 0; border-bottom: .5px solid var(--sep); }
-.pc-row .in { font-size: 15px; }
-.pc-row select { width: auto; flex: none; font-size: 14px; background: var(--fill); border-radius: 8px; padding: 4px 22px 4px 8px; border: 0; -webkit-appearance: none; appearance: none; color: var(--text); }
+.pc-row .in { font-size: 16px; }
+.pc-row select { width: auto; flex: none; font-size: 16px; background: var(--fill); border-radius: 8px; padding: 4px 22px 4px 8px; border: 0; -webkit-appearance: none; appearance: none; color: var(--text); }
 .x-btn { border: 0; background: none; color: var(--text3); padding: 4px; display: grid; place-items: center; }
 .add-line { border: 0; background: none; color: var(--accent); font-size: 15px; padding: 8px 0 2px; display: flex; align-items: center; gap: 6px; }
 .score-row { margin-bottom: 12px; }
@@ -429,7 +454,7 @@ input[type="range"] { flex: 1; accent-color: var(--accent); height: 30px; }
 /* ---------- Tagebuch ---------- */
 .j-text { font-size: 15px; color: var(--text2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; white-space: normal; }
 .mood { font-size: 26px; flex: none; }
-.prose { font-size: 16px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+.prose { -webkit-user-select: text; user-select: text; font-size: 16px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
 .prose-h { font-size: 13px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .03em; margin: 14px 0 4px; }
 
 /* ---------- Timer ---------- */
