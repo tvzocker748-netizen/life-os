@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.10.1';
+const APP_VERSION = '1.10.2';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2970,9 +2970,9 @@ function miniRingSvg(lw) {
 }
 
 function leLineHtml() {
-  const e = lifeExpectancyEst();
-  if (e == null) return '';
-  return `<div class="le-line">Richtwert Lebenserwartung <b>ca. ${Math.round(e)} Jahre</b> · noch ca. ${Math.round(Math.max(0, e - ageYears()))}</div>`;
+  const p = prognose();
+  if (!p) return '';
+  return `<div class="le-line">Prognose Lebenserwartung <b>ca. ${Math.round(p.total)} Jahre</b> · noch ca. ${Math.round(Math.max(0, p.total - p.age))}</div>`;
 }
 
 function lwCardHtml() {
@@ -3055,21 +3055,47 @@ function lifeExpectancyEst() {
   if (age == null || age < 0) return null;
   return leTotalAt(age, S.settings.sex || 'x');
 }
-/** Sichtbarer Block mit Richtwert und Restlebenszeit. */
-function leBlock() {
-  const e = lifeExpectancyEst();
-  if (e == null) return `<div class="le-card"><div class="le-l">Richtwert Lebenserwartung</div><div class="small muted">Trage dein Geburtsdatum ein, dann erscheint hier dein Richtwert.</div></div>`;
-  const rem = Math.max(0, e - ageYears());
-  const note = S.settings.sex ? 'Basis: Sterbetafel 2025 des Statistischen Bundesamts, nach Alter und Geschlecht. Grober Richtwert, keine Prognose.' : 'Ohne Angabe zum Geschlecht: Mittelwert beider Geschlechter. Angabe unter „Körper & Raster“ möglich.';
-  return `<div class="le-card"><div class="le-l">Richtwert Lebenserwartung</div>
-    <div class="le-row"><div><span class="le-big">${Math.round(e)}</span> <span class="muted">Jahre</span></div><div class="le-side">noch ca. ${Math.round(rem)} Jahre</div></div>
-    <div class="small muted">${note}</div></div>`;
+/** Prognose: Startwert nach Alter/Geschlecht, plus Zu- und Abschläge aus den Angaben, die du selbst machst. */
+function prognose() {
+  const age = ageYears();
+  if (age == null || age < 0) return null;
+  const sex = S.settings.sex || 'x';
+  const base = leTotalAt(age, sex);
+  const parts = [];
+  const sm = S.settings.smoke;
+  if (sm === 'mehr10') parts.push({ l: 'Rauchen über 10 pro Tag', v: sex === 'm' ? -9.4 : sex === 'f' ? -7.3 : -8.4 });
+  if (sm === 'bis10') parts.push({ l: 'Rauchen bis 10 pro Tag', v: -5 });
+  const w = S.weights.slice().sort(by(x => x.date)).pop();
+  const h = S.settings.height;
+  if (w && h && !S.settings.hideWeight) {
+    const bmi = w.kg / Math.pow(h / 100, 2);
+    if (bmi >= 30) parts.push({ l: 'BMI ab 30 (' + n1(bmi) + ')', v: sex === 'm' ? -3.1 : sex === 'f' ? -3.2 : -3.15 });
+  }
+  const sp = S.settings.sport;
+  if (sp >= 150) parts.push({ l: 'Bewegung ab 150 Min. pro Woche', v: 2 });
+  else if (sp >= 75) parts.push({ l: 'Bewegung ab 75 Min. pro Woche', v: 1 });
+  const total = clamp(base + parts.reduce((t, x) => t + x.v, 0), age + 1, 105);
+  return { age, base, parts, total };
 }
-/** Automatisches Raster-Ende: Richtwert + 5 Jahre, auf 5 gerundet, zwischen 80 und 100. */
+
+/** Sichtbarer Block mit Prognose, Startwert und Faktoren. */
+function leBlock() {
+  const p = prognose();
+  if (!p) return `<div class="le-card"><div class="le-l">Prognose Lebenserwartung</div><div class="small muted">Trage dein Geburtsdatum ein, dann erscheint hier deine Prognose.</div></div>`;
+  const rem = Math.max(0, p.total - p.age);
+  const rows = p.parts.map(x => `<div class="kv"><span>${esc(x.l)}</span><span class="num">${x.v > 0 ? '+' : '−'}${n1(Math.abs(x.v))} Jahre</span></div>`).join('');
+  const note = S.settings.sex ? '' : ' Ohne Angabe zum Geschlecht wird der Mittelwert beider Geschlechter genommen.';
+  return `<div class="le-card"><div class="le-l">Prognose Lebenserwartung</div>
+    <div class="le-row"><div><span class="le-big">${Math.round(p.total)}</span> <span class="muted">Jahre</span></div><div class="le-side">noch ca. ${Math.round(rem)} Jahre</div></div>
+    <div class="small muted">Startwert ${Math.round(p.base)} Jahre (Sterbetafel 2025 des Statistischen Bundesamts, nach Alter und Geschlecht).${note}</div>
+    ${rows ? `<div class="le-parts">${rows}</div>` : '<div class="small muted">Keine Faktoren angegeben. Angaben zu Rauchen, Gewicht und Bewegung trägst du unter „Körper & Raster“ ein.</div>'}
+    <div class="small muted">Grobe Orientierung aus Bevölkerungsstudien, keine persönliche Vorhersage.</div></div>`;
+}
+/** Automatisches Raster-Ende: Prognose + 5 Jahre, auf 5 gerundet, zwischen 80 und 100. */
 function autoMaxAge() {
-  const e = lifeExpectancyEst();
-  if (!e) return LW_DEFAULT_MAX;
-  return clamp(Math.round((e + 5) / 5) * 5, 80, 100);
+  const p = prognose();
+  if (!p) return LW_DEFAULT_MAX;
+  return clamp(Math.round((p.total + 5) / 5) * 5, 80, 100);
 }
 
 /** Monatsstimmung aus dem Tagebuch, geglättet über 3 Monate. */
@@ -3145,17 +3171,21 @@ A.editBody = () => formSheet({
   title: 'Körper & Raster',
   fields: [
     { key: 'sex', label: 'Für den Richtwert', type: 'seg', options: [{ v: 'f', l: 'Frau' }, { v: 'm', l: 'Mann' }, { v: 'x', l: 'Keine Angabe' }], hint: 'Nur für die grobe Lebenserwartung. Wird nur auf diesem Gerät gespeichert.' },
-    { key: 'maxAge', label: 'Raster-Ende (Alter)', type: 'seg', numeric: true, options: [{ v: 0, l: 'Auto' }, { v: 80, l: '80' }, { v: 90, l: '90' }, { v: 100, l: '100' }], hint: lifeExpectancyEst() ? `Auto ergibt ${autoMaxAge()} Jahre (Richtwert ca. ${Math.round(lifeExpectancyEst())} Jahre).` : 'Auto nutzt einen Richtwert, sobald du dein Geburtsdatum angibst.' },
+    { key: 'maxAge', label: 'Raster-Ende (Alter)', type: 'seg', numeric: true, options: [{ v: 0, l: 'Auto' }, { v: 80, l: '80' }, { v: 90, l: '90' }, { v: 100, l: '100' }], hint: prognose() ? `Auto ergibt ${autoMaxAge()} Jahre (Prognose ca. ${Math.round(prognose().total)} Jahre).` : 'Auto nutzt die Prognose, sobald du dein Geburtsdatum angibst.' },
+    { key: 'smoke', label: 'Rauchen', type: 'seg', options: [{ v: 'k', l: 'Keine Angabe' }, { v: 'nein', l: 'Nein' }, { v: 'bis10', l: 'Bis 10/Tag' }, { v: 'mehr10', l: 'Über 10/Tag' }], hint: 'Nur für die Prognose. Ohne Angabe zählt dieser Punkt nicht.' },
+    { key: 'sport', label: 'Bewegung pro Woche', type: 'seg', options: [{ v: 'k', l: 'Keine Angabe' }, { v: 'w', l: 'unter 75 Min.' }, { v: 's', l: '75–149 Min.' }, { v: 'v', l: 'ab 150 Min.' }], hint: 'Empfehlung der WHO: 150 Minuten moderate Bewegung pro Woche. Gewertet wird konservativ.' },
     { key: 'height', label: 'Körpergröße (cm)', type: 'text', placeholder: 'z. B. 178', cap: false },
     { key: 'weight', label: 'Gewicht heute (kg)', type: 'text', placeholder: 'z. B. 78,5', cap: false, hint: 'Ein Eintrag pro Tag. Ein neuer Wert am selben Tag ersetzt den alten.' },
     { key: 'hideW', label: 'Gewicht in der Ansicht ausblenden', type: 'toggle', group: true, hint: 'Die Werte bleiben gespeichert, werden aber nicht angezeigt. Gewicht ist ein sensibler Wert: Trage nur ein, was dir guttut.' }
   ],
-  values: { sex: S.settings.sex || 'x', maxAge: S.settings.maxAge || 0, height: S.settings.height ? String(S.settings.height) : '', weight: '', hideW: !!S.settings.hideWeight },
+  values: { sex: S.settings.sex || 'x', smoke: S.settings.smoke || 'k', sport: ({ 0: 'w', 75: 's', 150: 'v' })[S.settings.sport] || 'k', maxAge: S.settings.maxAge || 0, height: S.settings.height ? String(S.settings.height) : '', weight: '', hideW: !!S.settings.hideWeight },
   onSave: async v => {
     const h = parseNum(v.height);
     if (isFinite(h) && h > 50 && h < 260) S.settings.height = Math.round(h);
     S.settings.sex = v.sex === 'x' ? null : v.sex;
     S.settings.maxAge = +v.maxAge || 0;
+    S.settings.smoke = v.smoke === 'k' ? null : v.smoke;
+    S.settings.sport = ({ w: 0, s: 75, v: 150 })[v.sport] ?? null;
     S.settings.hideWeight = !!v.hideW;
     const w = parseNum(v.weight);
     if (isFinite(w) && w > 20 && w < 400) {

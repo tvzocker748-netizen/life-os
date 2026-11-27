@@ -717,3 +717,7 @@ details.fold[open] > summary { margin-bottom: 14px; }
 .le-side { font-size: 16px; font-weight: 650; }
 .le-line { margin-top: 8px; font-size: 13px; color: var(--muted, #888); }
 .le-line b { color: var(--text); }
+
+/* ---------- Version 1.10.2: Prognose mit Faktoren ---------- */
+.le-parts { margin: 8px 0; }
+.le-parts .kv { padding: 6px 0; font-size: 14px; }
