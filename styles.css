@@ -842,3 +842,7 @@ details.fold[open] > summary { margin-bottom: 14px; }
 
 /* ---------- Version 1.13.3: Profil blockiert Wischen im Hintergrund ---------- */
 #profil { overscroll-behavior: contain; touch-action: pan-y; }
+
+/* ---------- Version 1.13.4: keine sichtbaren Scrollleisten ---------- */
+html, body, #profil, #app, .sheet, .sheet-body, .scroll { scrollbar-width: none; -ms-overflow-style: none; }
+::-webkit-scrollbar { display: none; width: 0; height: 0; }
