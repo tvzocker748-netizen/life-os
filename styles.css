@@ -739,3 +739,6 @@ details.fold[open] > summary { margin-bottom: 14px; }
 .pf-err { color: #d62d2d; font-size: 14px; min-height: 18px; }
 .pf-nav { display: flex; gap: 10px; margin-top: 4px; }
 .pf-nav .btn { flex: 1; }
+
+/* ---------- Version 1.12: einmaliger Neustart ---------- */
+.pf-nav-col { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }

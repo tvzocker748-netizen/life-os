@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.11.0';
+const APP_VERSION = '1.12.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -3209,7 +3209,7 @@ function startProfil(force) {
   const s = S.settings;
   const lw = S.weights.slice().sort(by(w => w.date)).pop();
   PF = {
-    on: true, i: 0, err: '',
+    on: true, mode: 'profile', i: 0, err: '',
     d: {
       birth: s.birth || '',
       sex: s.sex ? s.sex : (s.birth ? s.sex : undefined),
@@ -3251,6 +3251,7 @@ const PF_Q = {
 };
 
 function profilHtml() {
+  if (PF.mode === 'reset') return resetHtml();
   const step = PF_STEPS[PF.i];
   const dots = PF_STEPS.map((s, k) => `<i class="${k <= PF.i ? 'on' : ''}"></i>`).join('');
   let main = '';
@@ -3337,6 +3338,44 @@ A.pfFinish = async () => {
   renderProfil();
   render(true);
   toast('Profil gespeichert');
+};
+
+/* ---------------- Einmaliger Neustart für alle bestehenden Nutzer ---------------- */
+function resetNeeded() { return !!S.settings.onboarded && !(S.settings.resetV >= 1); }
+
+function showReset() {
+  PF = { on: true, mode: 'reset', i: 0, d: {}, err: '' };
+  renderProfil();
+}
+function resetHtml() {
+  return `<div class="pf-in"><h1 class="pf-q">Neuer Start</h1>
+    <p class="pf-h">LIFE OS wird einmalig zurückgesetzt. Alle Buchungen, Konten, Ziele, Gewohnheiten, Tagebucheinträge, Berichte und Einstellungen werden von diesem Gerät gelöscht.</p>
+    <p class="pf-h">Danach beantwortest du die Profil-Fragen einmal neu. Dieser Schritt gilt für alle Nutzer gleich und lässt sich nicht rückgängig machen.</p>
+    <div class="pf-nav-col">
+      <button class="btn gray" data-act="resetBackup">Vorher Backup speichern</button>
+      <button class="btn" style="background:#d62d2d" data-act="resetDo">Alle Daten löschen &amp; neu starten</button>
+    </div></div>`;
+}
+A.resetBackup = () => A.backup();
+A.resetDo = async () => {
+  // Das Vollbild-Overlay liegt über den Dialogen: für die Bestätigung kurz ausblenden.
+  const ov = document.getElementById('profil');
+  const ask = async (msg, opts) => { if (ov) ov.hidden = true; const ok = await confirmDlg(msg, opts); if (ov && !ok) ov.hidden = false; return ok; };
+  if (!await ask('Alle Daten auf diesem Gerät werden gelöscht. Das lässt sich nicht rückgängig machen.', { title: 'Alle Daten löschen?', ok: 'Weiter', danger: true })) return;
+  if (!await ask('Hast du ein aktuelles Backup? Ohne Backup sind die Daten danach weg.', { title: 'Wirklich alles löschen?', ok: 'Endgültig löschen', danger: true })) return;
+  await DB.replaceAll({});
+  try { localStorage.removeItem('lifeos-ui'); } catch (e) { /* */ }
+  S.pin = null; LK = { active: false, mode: 'unlock', buf: '', first: '', err: '' }; renderLock();
+  S.settings = { ...DEFAULT_SETTINGS, onboarded: true, resetV: 1, createdAt: today() };
+  await saveSettings();
+  await loadAll();
+  closeAllSheets();
+  UI.tab = 'heute';
+  PF = { on: false, i: 0, d: {}, err: '' };
+  renderProfil();
+  render(true);
+  startProfil(true);
+  toast('Neu gestartet – bitte dein Profil ausfüllen');
 };
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
@@ -4108,6 +4147,7 @@ async function finishOnboarding() {
   const n = $('#obName');
   S.settings.name = n ? n.value.trim() : '';
   S.settings.onboarded = true;
+  S.settings.resetV = 1;
   S.settings.createdAt = S.settings.createdAt || today();
   await saveSettings();
   try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) { /* */ }
@@ -4174,6 +4214,7 @@ async function init() {
     if (n) toast(`${n} automatische Buchung${n > 1 ? 'en' : ''} erstellt`);
   } catch (e) { console.error(e); render(true); }
   if (!S.settings.onboarded) showOnboarding();
+  else if (resetNeeded()) showReset();
   else startProfil();
   registerSW();
 }
