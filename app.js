@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.13.0';
+const APP_VERSION = '1.13.1';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2876,7 +2876,7 @@ A.calExport = async () => {
 
 /* ---------------- Heute: Einbindung ---------------- */
 function featuresHomeHtml() {
-  return ringsHtml() + onThisDayHtml() + availCardHtml() + reviewCardHtml() + lwCardHtml();
+  return ringsHtml() + availCardHtml() + reviewCardHtml() + onThisDayHtml() + lwCardHtml();
 }
 
 /* ---------------- Lokale Muster-Erkenntnisse (ohne KI, ohne Internet) ---------------- */
@@ -3767,13 +3767,17 @@ function greeting() {
 VIEWS.heute = () => {
   const t = today(), name = (S.settings.name || '').trim();
   let h = '';
-  if (S.settings.demo) h += `<div class="hint-box orange">🧪 Du siehst <b>Beispieldaten</b>. Wenn du startklar bist: <button class="link" data-act="resetAll">Alles löschen & neu beginnen</button></div>`;
+  if (S.settings.demo) h += `<div class="hint-box orange">🧪 <b>Beispieldaten</b> aktiv · <button class="link" data-act="resetAll">Alles löschen</button></div>`;
   h += `<div class="quick">
-    <button data-act="addTx" data-type="expense"><span class="q-ico" style="background:var(--red-ui)">${ic('minus')}</span>Ausgabe</button>
+    <button data-act="quickEntry"><span class="q-ico" style="background:var(--red-ui)">${ic('minus')}</span>Ausgabe</button>
     <button data-act="addTx" data-type="income"><span class="q-ico" style="background:var(--green-ui)">${ic('plus')}</span>Einnahme</button>
     <button data-act="addJournal"><span class="q-ico" style="background:var(--indigo)">${ic('edit')}</span>Tagebuch</button>
     <button data-act="addTask"><span class="q-ico" style="background:var(--orange-ui)">${ic('check')}</span>Aufgabe</button></div>`;
-  h += featuresHomeHtml();
+  h += ringsHtml() + availCardHtml() + reviewCardHtml();
+  if (!S.transactions.length && !S.journal.length && !S.habits.length) {
+    h += `<div class="card"><div class="card-t">Starte hier</div><p class="small muted" style="margin:6px 0 12px">Eine Ausgabe oder ein Tagebucheintrag reicht für den Anfang.</p>
+      <div class="rings-btns"><button class="btn tinted small" data-act="quickEntry">Ausgabe erfassen</button><button class="btn tinted small" data-act="addJournal">Tagebuch</button></div></div>`;
+  }
   // Finanz-Überblick
   const cm = monthStats(curMonth());
   if (S.accounts.length || S.transactions.length) {
@@ -3789,8 +3793,8 @@ VIEWS.heute = () => {
   // Empfehlungen
   const recs = recommendations();
   if (recs.length) {
-    h += `<div class="section-h"><h2>Empfehlungen</h2>${recs.length > 3 ? `<button class="link" data-act="allRecs">Alle (${recs.length})</button>` : ''}</div>`;
-    h += `<div class="card">${recs.slice(0, 3).map(recHtml).join('')}</div>`;
+    h += `<div class="section-h"><h2>Empfehlungen</h2>${recs.length > 2 ? `<button class="link" data-act="allRecs">Alle (${recs.length})</button>` : ''}</div>`;
+    h += `<div class="card">${recs.slice(0, 2).map(recHtml).join('')}</div>`;
   }
   // Gewohnheiten
   const hs = activeHabits();
@@ -3804,9 +3808,10 @@ VIEWS.heute = () => {
   const focus = sortTasks(ot.filter(x => x.important || (x.due && x.due <= t))).slice(0, 5);
   if (ot.length) {
     h += `<div class="section-h"><h2>Heute wichtig</h2><button class="link" data-act="go" data-tab="ziele" data-sub="tasks">Alle (${ot.length})</button></div>`;
-    h += focus.length ? `<div class="list">${focus.map(taskRow).join('')}</div>` : `<div class="card small muted">Keine fälligen Aufgaben. Markiere Aufgaben mit ⭐️, um sie hier zu sehen.</div>`;
+    h += focus.length ? `<div class="list">${focus.map(taskRow).join('')}</div>` : `<div class="card small muted">Keine fälligen Aufgaben.</div>`;
   }
   h += '<details class="fold"><summary>Mehr anzeigen</summary>';
+  h += onThisDayHtml() + lwCardHtml();
   // Demnächst
   const up = upcoming(10);
   if (up.length) {

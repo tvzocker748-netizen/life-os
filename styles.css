@@ -836,3 +836,6 @@ details.fold[open] > summary { margin-bottom: 14px; }
 .ms-age { font-weight: 700; color: var(--accent); min-width: 64px; }
 .onb h1 { font-size: 40px; letter-spacing: -.035em; background: linear-gradient(90deg, #0a84ff, #bf5af2, #ff375f); -webkit-background-clip: text; background-clip: text; color: transparent; }
 @media (prefers-reduced-motion: reduce) { .rg-fg, .greet { animation: none !important; } }
+
+/* ---------- Version 1.13.1: Aufräumen ---------- */
+.num { white-space: nowrap; }
