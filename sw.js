@@ -1,7 +1,7 @@
 /* LIFE OS – Service Worker
    Speichert die App für die Offline-Nutzung. Bei jeder neuen Version
    die Versionsnummer unten erhöhen, damit Geräte das Update erhalten. */
-const VERSION = 'lifeos-v1.12.1';
+const VERSION = 'lifeos-v1.12.2';
 const ASSETS = [
   './',
   './index.html',
@@ -17,7 +17,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(VERSION).then(cache =>
       cache.addAll(ASSETS.map(url => new Request(url, { cache: 'reload' })))
-    )
+    ).then(() => self.skipWaiting()) // neue Version sofort übernehmen
   );
 });
 
