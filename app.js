@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.4.2';
+const APP_VERSION = '1.5.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2842,6 +2842,47 @@ A.calExport = async () => {
 function featuresHomeHtml() {
   return availCardHtml() + reviewCardHtml();
 }
+
+/* ---------------- Lokale Muster-Erkenntnisse (ohne KI, ohne Internet) ---------------- */
+function insightRecs(add) {
+  const t = today(), cm = curMonth(), dom = +t.slice(8, 10);
+  const dim = daysInMonth(+cm.slice(0, 4), +cm.slice(5, 7) - 1);
+
+  // 1) Wochentags-Muster der letzten 8 Wochen
+  const from = addDays(t, -56);
+  const recent = S.transactions.filter(x => x.type === 'expense' && x.date >= from && x.date <= t);
+  if (recent.length >= 15) {
+    const byDow = Array(7).fill(0);
+    recent.forEach(x => { byDow[(pd(x.date).getDay() + 6) % 7] += x.amount; });
+    const names = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    const avgDay = sum(byDow) / 7;
+    const i = byDow.indexOf(Math.max(...byDow));
+    const perDay = byDow[i] / 8, typical = avgDay / 8;
+    if (avgDay > 0 && perDay - typical >= 10 && byDow[i] > avgDay * 1.4) {
+      add({ key: 'ins-dow', prio: 2, icon: '📅', title: `${names[i]}s sind deine teuersten Tage`, text: `Im Schnitt ${eur0(perDay)} an einem ${names[i]} – ${eur0(perDay - typical)} mehr als an einem typischen Tag. Plane dafür bewusst ein Budget ein.`, act: 'go', tab: 'finanzen', sub: 'tx', actLabel: 'Buchungen ansehen' });
+    }
+  }
+
+  // 2) Kategorie mit deutlichem Anstieg (hochgerechnet auf den ganzen Monat)
+  if (dom >= 7) {
+    const m = monthStats(cm), a = avgStats(3);
+    let best = null;
+    Object.entries(m.byCat).forEach(([c, v]) => {
+      const proj = v * dim / dom, base = a.byCat[c] || 0;
+      if (base > 0 && proj > base * 1.25 && proj - base >= 40) {
+        if (!best || proj - base > best.diff) best = { c, proj, base, diff: proj - base };
+      }
+    });
+    if (best) add({ key: `ins-trend-${best.c}-${cm}`, prio: 2, icon: '📈', title: `${best.c} steigt deutlich`, text: `Hochgerechnet ${eur0(best.proj)} diesen Monat statt Ø ${eur0(best.base)} sonst. Das sind ${eur0(best.diff)} mehr.`, act: 'catTx', cat: best.c, actLabel: 'Ansehen' });
+  }
+
+  // 3) Viele kleine Käufe
+  const small = S.transactions.filter(x => x.type === 'expense' && x.date.slice(0, 7) === cm && x.amount < 10);
+  const smallSum = sum(small, x => x.amount);
+  if (small.length >= 12 && smallSum >= 60) {
+    add({ key: `ins-small-${cm}`, prio: 2, icon: '🪙', title: 'Viele kleine Käufe', text: `${small.length} Käufe unter 10 € – zusammen ${eur0(smallSum)} in diesem Monat. Kleinbeträge summieren sich unbemerkt.`, act: 'go', tab: 'finanzen', sub: 'tx', actLabel: 'Buchungen ansehen' });
+  }
+}
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).
@@ -2950,6 +2991,7 @@ function recommendations() {
   return memo('recs' + today(), () => {
     const R = [], t = today(), st = S.settings;
     const add = r => R.push(r);
+    insightRecs(add);
     const hasData = S.transactions.length + S.goals.length + S.journal.length + S.habits.length + S.accounts.length + S.tasks.length > 0;
 
     // Datensicherung
