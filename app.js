@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.3.1';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -297,7 +297,7 @@ function render(resetScroll = false) {
   const fn = VIEWS[UI.tab] || VIEWS.heute;
   const y = window.scrollY;
   try {
-    v.innerHTML = fn();
+    v.innerHTML = svgify(fn());
   } catch (e) {
     console.error(e);
     v.innerHTML = `<div class="page"><div class="card mt"><b>Unerwarteter Fehler</b><p class="muted small mt">${esc(e.message)}</p><button class="btn block mt" data-act="tab" data-tab="heute">Zur Startseite</button></div></div>`;
@@ -381,7 +381,7 @@ A.seg = d => {
 let toastTimer;
 function toast(msg, action) {
   const t = $('#toast');
-  t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button>${esc(action.label)}</button>` : ''}`;
+  t.innerHTML = svgify(`<span>${esc(msg)}</span>${action ? `<button>${esc(action.label)}</button>` : ''}`);
   if (action) $('button', t).onclick = () => { t.classList.remove('show'); action.fn(); };
   t.classList.add('show');
   clearTimeout(toastTimer);
@@ -448,7 +448,7 @@ function openSheet(o) {
       <div class="grabber"></div>
       <header class="sheet-head"><div class="sh-l">${o.left ?? '<button class="txt-btn" data-sheet-close>Schließen</button>'}</div>
       <h2>${esc(o.title)}</h2><div class="sh-r">${o.right || ''}</div></header>
-      <div class="sheet-body">${o.body}</div>
+      <div class="sheet-body">${svgify(o.body)}</div>
     </section>`;
   $('#sheets').appendChild(wrap);
   document.body.classList.add('noscroll');
@@ -458,7 +458,7 @@ function openSheet(o) {
     el: wrap,
     body: $('.sheet-body', wrap),
     opts: o,
-    setBody(html) { this.body.innerHTML = html; },
+    setBody(html) { this.body.innerHTML = svgify(html); },
     close(fromPop) {
       if (closed) return;
       closed = true;
@@ -2841,6 +2841,104 @@ A.calExport = async () => {
 /* ---------------- Heute: Einbindung ---------------- */
 function featuresHomeHtml() {
   return availCardHtml() + reviewCardHtml();
+}
+/* =========================================================
+   ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
+   (wirkt hochwertiger und passt zum Apple-Stil).
+   svgify() wird beim Rendern auf den Text angewendet; Attribute bleiben unverändert.
+   ========================================================= */
+const ICON_PATHS = {
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  repeat: '<path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  star: '<path d="M12 3.5l2.6 5.5 6 .8-4.4 4.1 1.1 5.9L12 16.8l-5.3 2.9 1.1-5.9-4.4-4.1 6-.8z"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  back: '<path d="M21 6H9l-6 6 6 6h12z"/><path d="M12 10l5 4M17 10l-5 4"/>',
+  leaf: '<path d="M5 19C5 10 10 5 19 5c0 9-5 14-14 14z"/><path d="M5 19l7-7"/>',
+  bank: '<path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18"/>',
+  chart: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5V15h8v-1.5A6 6 0 0 0 12 3z"/>',
+  flame: '<path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z"/>',
+  clipboard: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h6"/>',
+  pencil: '<path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M14 6l3 3"/>',
+  scale: '<path d="M12 4v16M6 20h12M4 7h16M7 7l-3 6a3 3 0 0 0 6 0zM17 7l-3 6a3 3 0 0 0 6 0z"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  flask: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>',
+  gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v9h14v-9M12 8v13M12 8c-2-4-6-4-6-1s6 1 6 1M12 8c2-4 6-4 6-1s-6 1-6 1"/>',
+  coin: '<circle cx="12" cy="12" r="9"/><path d="M14.5 9.5a3 3 0 1 0 0 5"/>',
+  sparkle: '<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>',
+  house: '<path d="M4 11l8-7 8 7v9h-5v-6h-6v6H4z"/>',
+  cart: '<path d="M3 4h2l2.5 11h10L20 7H6.5M9 19.5a.5.5 0 1 0 0 .1M17 19.5a.5.5 0 1 0 0 .1"/>',
+  fork: '<path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7M9 3v7M17 21V3c-2 1-3 4-3 8h3"/>',
+  car: '<path d="M5 16v-5l2-5h10l2 5v5M3 16h18v3H3z"/><path d="M7 18h.01M17 18h.01"/>',
+  pulse: '<path d="M3 12h4l2-5 4 10 2-5h6"/>',
+  bag: '<path d="M6 8h12l-1 12H7zM9 8V6a3 3 0 0 1 6 0v2"/>',
+  ticket: '<path d="M3 8h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4z"/>',
+  plane: '<path d="M3 12l18-8-7 17-3-7z"/>',
+  book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 5v16"/>',
+  cap: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/>',
+  laptop: '<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>',
+  box: '<path d="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2"/>',
+  rocket: '<path d="M12 3c4 3 5 7 4 12l-4 3-4-3c-1-5 0-9 4-12zM9 18l-2 3M15 18l2 3"/>',
+  undo: '<path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  heart: '<path d="M12 20s-8-5-8-11a4 4 0 0 1 8-1 4 4 0 0 1 8 1c0 6-8 11-8 11z"/>',
+  flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  pin: '<path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  person: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+  bolt: '<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>',
+  moon: '<path d="M20 14a8 8 0 1 1-10-10 7 7 0 0 0 10 10z"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8zM7 8h.01"/>',
+  trophy: '<path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M12 14v4M8 21h8"/>',
+  bell: '<path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/>',
+  warning: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  card: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  face: '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M9 15h6"/>',
+  'face-big': '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8 13.5c2 3 6 3 8 0"/>',
+  'face-smile': '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8 14c2 2 6 2 8 0"/>',
+  'face-smile-soft': '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M9 14.5c1 1 5 1 6 0"/>',
+  'face-frown-soft': '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M9 15.5c1-1 5-1 6 0"/>',
+  'face-sad': '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M8 16c2-2 6-2 8 0"/>'
+};
+
+// Emoji (ohne Variationszeichen U+FE0F) → Icon-Name
+const EMO_ICON = {
+  '🎯': 'target', '🔁': 'repeat', '🔄': 'repeat', '✓': 'check', '✅': 'check',
+  '⭐': 'star', '★': 'star', '☆': 'star', '🔒': 'lock', '⌫': 'back',
+  '🌱': 'leaf', '🌴': 'leaf', '🧘': 'leaf', '🏦': 'bank', '🏛': 'bank',
+  '📈': 'chart', '📉': 'chart', '🧾': 'receipt', '💡': 'bulb', '🔥': 'flame',
+  '📋': 'clipboard', '📝': 'pencil', '✍': 'pencil', '⚖': 'scale', '🛡': 'shield', '🛟': 'shield',
+  '🧭': 'compass', '⏰': 'clock', '⏳': 'clock', '🧪': 'flask', '🎁': 'gift',
+  '💶': 'coin', '💵': 'coin', '🪙': 'coin', '🐖': 'coin', '🐷': 'coin',
+  '🧠': 'sparkle', '🧩': 'sparkle', '💎': 'sparkle', '🎉': 'sparkle', '✨': 'sparkle', '👋': 'sparkle',
+  '🏠': 'house', '🏡': 'house', '🛒': 'cart', '🍽': 'fork', '🚗': 'car', '🩺': 'pulse',
+  '👕': 'bag', '🧺': 'bag', '🎟': 'ticket', '✈': 'plane', '📚': 'book', '🎓': 'cap',
+  '💻': 'laptop', '📦': 'box', '💼': 'briefcase', '🚀': 'rocket', '↩': 'undo',
+  '❤': 'heart', '🫶': 'heart', '🏁': 'flag', '📍': 'pin',
+  '😞': 'face-sad', '🙁': 'face-frown-soft', '😐': 'face', '🙂': 'face-smile-soft', '😊': 'face-smile', '😄': 'face-big', '🤔': 'face',
+  '👤': 'person', '🧓': 'person', '🏃': 'bolt', '💪': 'bolt', '⚡': 'bolt', '💤': 'moon',
+  '🏷': 'tag', '🏆': 'trophy', '🏅': 'trophy', '⚠': 'warning', '🚨': 'warning', '📵': 'bell',
+  '🔍': 'search', '💳': 'card', '📅': 'calendar'
+};
+
+const EMO_KEYS = Object.keys(EMO_ICON).sort((a, b) => b.length - a.length);
+const ICON_SVG = Object.fromEntries(Object.entries(ICON_PATHS).map(([k, v]) =>
+  [k, `<svg class="ei" viewBox="0 0 24 24" aria-hidden="true">${v}</svg>`]));
+
+/** Ersetzt Emojis im Text (nicht in Tags/Attributen) durch Linien-Icons. */
+function svgify(html) {
+  if (typeof html !== 'string' || !html) return html;
+  return html.replace(/(<[^>]*>)|([^<]+)/g, (m, tag, txt) => {
+    if (tag) return tag;
+    let out = txt;
+    for (const k of EMO_KEYS) if (out.includes(k)) out = out.split(k).join(ICON_SVG[EMO_ICON[k]]);
+    return out;
+  });
 }
 /* =========================================================
    START, EMPFEHLUNGEN, BERICHTE, EINSTELLUNGEN, BACKUP
