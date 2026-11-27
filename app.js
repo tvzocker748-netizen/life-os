@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.13.4';
+const APP_VERSION = '1.13.5';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -3550,6 +3550,23 @@ function openQuickFromLink() {
   if (q.get('note')) QE.note = q.get('note').slice(0, 60);
   if (QE.sh && QE.sh.setBody) QE.sh.setBody(quickEntryHtml());
 }
+
+/* ---------------- Sicherungs-Karte und Startbild ---------------- */
+function backupBannerHtml() {
+  if (S.settings.demo || (!S.transactions.length && !S.journal.length)) return '';
+  const lb = S.settings.lastBackup ? new Date(S.settings.lastBackup) : null;
+  const days = lb ? Math.floor((Date.now() - lb) / 864e5) : null;
+  if (days != null && days < (S.settings.backupDays || 14)) return '';
+  const txt = days == null ? 'Du hast noch keine Sicherung. Eine Sicherung schützt deine Daten.' : `Letzte Sicherung vor ${days} ${days === 1 ? 'Tag' : 'Tagen'}.`;
+  return `<div class="card backup-card"><div class="card-t">Sicherung</div><p class="small muted" style="margin:6px 0 10px">${txt}</p><button class="btn tinted small" data-act="backup">Jetzt sichern</button></div>`;
+}
+function showSplash() {
+  const d = document.createElement('div');
+  d.id = 'splash';
+  d.innerHTML = '<img src="icon-192.png" alt=""><span>LIFE OS</span>';
+  document.body.appendChild(d);
+  setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 500); }, 1000);
+}
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).
@@ -3789,7 +3806,7 @@ VIEWS.heute = () => {
     <button data-act="addTx" data-type="income"><span class="q-ico" style="background:var(--green-ui)">${ic('plus')}</span>Einnahme</button>
     <button data-act="addJournal"><span class="q-ico" style="background:var(--indigo)">${ic('edit')}</span>Tagebuch</button>
     <button data-act="addTask"><span class="q-ico" style="background:var(--orange-ui)">${ic('check')}</span>Aufgabe</button></div>`;
-  h += ringsHtml() + availCardHtml() + reviewCardHtml();
+  h += backupBannerHtml() + ringsHtml() + availCardHtml() + reviewCardHtml();
   if (!S.transactions.length && !S.journal.length && !S.habits.length) {
     h += `<div class="card"><div class="card-t">Starte hier</div><p class="small muted" style="margin:6px 0 12px">Eine Ausgabe oder ein Tagebucheintrag reicht für den Anfang.</p>
       <div class="rings-btns"><button class="btn tinted small" data-act="quickEntry">Ausgabe erfassen</button><button class="btn tinted small" data-act="addJournal">Tagebuch</button></div></div>`;
@@ -4375,6 +4392,7 @@ function registerSW() {
 }
 
 async function init() {
+  showSplash();
   try {
     await DB.open();
     await loadAll();
