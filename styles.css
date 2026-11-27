@@ -608,3 +608,28 @@ button:active, .card.tap:active, .quick button:active, .qe-pad button:active, .l
 @keyframes pillIn { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
 .sheet { box-shadow: 0 -10px 60px rgba(0, 0, 0, .18); }
 .sheet .grabber { background: var(--fill2); }
+
+/* ---------- Version 1.4.1: lebendiger, dezenter Hintergrund & Feinschliff ---------- */
+body::before {
+  content: ""; position: fixed; inset: -25%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(38% 34% at 24% 22%, rgba(10, 132, 255, .30), transparent 72%),
+    radial-gradient(36% 32% at 82% 30%, rgba(175, 82, 222, .24), transparent 72%),
+    radial-gradient(40% 34% at 58% 84%, rgba(52, 199, 89, .20), transparent 72%),
+    radial-gradient(30% 28% at 12% 78%, rgba(255, 159, 10, .13), transparent 72%);
+  animation: drift 42s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes drift {
+  from { transform: translate3d(-3%, -2%, 0) scale(1) rotate(0deg); }
+  to   { transform: translate3d(4%, 3%, 0) scale(1.08) rotate(3deg); }
+}
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) body::before { opacity: .55; } }
+:root[data-theme="dark"] body::before { opacity: .55; }
+@media (prefers-reduced-motion: reduce) { body::before { animation: none; } }
+.card { box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.card-t { letter-spacing: .07em; font-weight: 650; }
+#tabbar { background: rgba(255, 255, 255, .58); }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) #tabbar { background: rgba(20, 20, 22, .6); } }
+:root[data-theme="dark"] #tabbar { background: rgba(20, 20, 22, .6); }
+.section-h { padding-top: 14px; }
