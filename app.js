@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.12.2';
+const APP_VERSION = '1.13.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2876,7 +2876,7 @@ A.calExport = async () => {
 
 /* ---------------- Heute: Einbindung ---------------- */
 function featuresHomeHtml() {
-  return availCardHtml() + reviewCardHtml() + lwCardHtml();
+  return ringsHtml() + onThisDayHtml() + availCardHtml() + reviewCardHtml() + lwCardHtml();
 }
 
 /* ---------------- Lokale Muster-Erkenntnisse (ohne KI, ohne Internet) ---------------- */
@@ -3009,6 +3009,7 @@ function lwSheetHtml() {
     <div class="lu-wrap">${lebensuhrSvg(lw)}</div>
     <div class="lw-legend"><span><i class="lw-dot grad"></i>gelebt · Farbe nach Alter</span><span><i class="lw-dot now"></i>diese Woche</span><span><i class="lw-dot"></i>offen</span></div>`;
   body += `<div class="list-h"><span>Lebensphasen</span></div>${phasesHtml()}`;
+  body += milestonesHtml();
   body += `<div class="list-h"><span>Körperdaten</span></div><div class="card">
       <div class="kv"><span>Größe</span><span class="num">${h ? h + ' cm' : '–'}</span></div>
       ${S.settings.hideWeight ? '<div class="kv"><span>Gewicht</span><span class="muted">ausgeblendet</span></div>' : `<div class="kv"><span>Gewicht heute</span><span class="num">${ws && ws.last.date === today() ? n1(ws.last.kg) + ' kg' : '–'}</span></div>
@@ -3398,6 +3399,141 @@ A.resetDo = async () => {
   startProfil(true);
   toast('Neu gestartet – bitte dein Profil ausfüllen');
 };
+
+/* ---------------- Version 1.13: Tagesringe, Erinnerungen, Monatsrückblick, Was-wäre-wenn ---------------- */
+const RING_C = r => 2 * Math.PI * r;
+function ringValues() {
+  const t = today();
+  const dom = +t.slice(8, 10), dim = new Date(+t.slice(0, 4), +t.slice(5, 7), 0).getDate();
+  const cm = monthStats(curMonth());
+  const plan = avgStats(3).expense;
+  let fin = null;
+  if (cm.count) fin = plan > 0 ? clamp((plan * dom / dim) / Math.max(cm.expense, 1), 0, 1) : 1;
+  const hab = habitsRate(t, t);
+  const jr = clamp(S.journal.filter(j => j.date >= addDays(t, -6)).length / 7, 0, 1);
+  return { fin, hab, jr };
+}
+function ringsHtml() {
+  const { fin, hab, jr } = ringValues();
+  if (fin == null && hab == null && !S.journal.length) return '';
+  const rings = [
+    { r: 52, v: fin ?? 0, c: '#30d158', l: 'Finanzen', t: fin == null ? 'noch keine Buchungen' : fin >= 1 ? 'im Plan' : 'über dem Tempo' },
+    { r: 40, v: hab ?? 0, c: '#0a84ff', l: 'Gewohnheiten', t: hab == null ? 'noch keine Gewohnheit' : pct(hab * 100) + ' heute' },
+    { r: 28, v: jr, c: '#bf5af2', l: 'Tagebuch', t: Math.round(jr * 7) + ' von 7 Tagen' }
+  ];
+  const svg = rings.map(g => { const C = RING_C(g.r), off = C * (1 - g.v); return `<circle cx="60" cy="60" r="${g.r}" class="rg-track" stroke-width="11"/><circle cx="60" cy="60" r="${g.r}" class="rg-fg" stroke="${g.c}" stroke-width="11" stroke-dasharray="${C.toFixed(1)}" style="--c:${C.toFixed(1)};--o:${off.toFixed(1)};stroke-dashoffset:${off.toFixed(1)}" transform="rotate(-90 60 60)"/>`; }).join('');
+  const leg = rings.map(g => `<div class="rg-leg"><i style="background:${g.c}"></i><div><b>${g.l}</b><span>${g.t}</span></div></div>`).join('');
+  return `<div class="card rings-card"><div class="between"><span class="card-t">Dein Tag</span><span class="small muted">${esc(fDay(today()))}</span></div>
+    <div class="rings-row"><svg class="rings-svg" viewBox="0 0 120 120" aria-hidden="true">${svg}</svg><div class="rings-leg">${leg}</div></div>
+    <div class="rings-btns"><button class="btn tinted small" data-act="monthStory">Dein Monat</button><button class="btn tinted small" data-act="whatIf">Was wäre wenn</button></div></div>`;
+}
+
+/** „An diesem Tag“: Tagebucheinträge vom selben Datum in früheren Jahren. */
+function onThisDayHtml() {
+  const t = today(), md = t.slice(5), y = t.slice(0, 4);
+  const hits = S.journal.filter(j => j.date.slice(5) === md && j.date.slice(0, 4) < y && (j.text || '').trim()).sort(by(j => j.date));
+  if (!hits.length) return '';
+  const items = hits.slice(0, 3).map(j => `<div class="otd-i"><span class="otd-y">${esc(j.date.slice(0, 4))}</span><p>${esc((j.text || '').trim().slice(0, 140))}${(j.text || '').trim().length > 140 ? '…' : ''}</p></div>`).join('');
+  return `<div class="card otd"><div class="card-t">An diesem Tag</div>${items}</div>`;
+}
+
+function greetHtml() {
+  const hr = new Date().getHours();
+  const g = hr < 11 ? 'Guten Morgen' : hr < 18 ? 'Hallo' : 'Guten Abend';
+  const n = (S.settings.name || '').trim();
+  return `<div class="greet">${g}${n ? `, <span class="pf-grad">${esc(n)}</span>` : '.'}</div>`;
+}
+
+/* Monatsrückblick als wischbare Karten, teilbar als Bild */
+function monthSlides() {
+  const k = curMonth(), cm = monthStats(k);
+  const from = k + '-01', to = k + '-31';
+  const hab = habitsRate(from, to);
+  const jm = S.journal.filter(j => j.date.slice(0, 7) === k);
+  const avgMood = jm.filter(j => j.mood).length ? avg(jm.filter(j => j.mood).map(j => +j.mood)) : null;
+  const top = Object.entries(cm.byCat).sort(by(e => e[1], -1))[0];
+  return [
+    { c: '', big: eur0(cm.expense), l: 'ausgegeben in ' + fMon(k) },
+    { c: 'b', big: (cm.balance >= 0 ? '+' : '−') + eur0(Math.abs(cm.balance)), l: cm.balance >= 0 ? 'Überschuss in diesem Monat' : 'Fehlbetrag in diesem Monat' },
+    { c: 'c', big: top ? top[0] : '–', l: top ? 'größte Ausgabe: ' + eur0(top[1]) : 'Noch keine Ausgaben' },
+    { c: '', big: hab == null ? '–' : pct(hab * 100), l: 'deiner Gewohnheiten erledigt' },
+    { c: 'b', big: String(jm.length), l: avgMood ? 'Tagebucheinträge · Stimmung ' + avgMood.toFixed(1) + ' von 5' : 'Tagebucheinträge' }
+  ];
+}
+A.monthStory = () => {
+  const sl = monthSlides();
+  const body = `<div class="ms-track">${sl.map(s => `<div class="ms-slide ${s.c}"><div class="ms-l">${esc(s.l)}</div><div class="ms-big">${esc(s.big)}</div></div>`).join('')}</div>
+    <p class="small muted" style="margin-top:12px">Wische zur Seite. Das Bild kannst du teilen oder speichern.</p>
+    <button class="btn block" data-act="monthShare">Als Bild teilen</button>`;
+  openSheet({ title: 'Dein Monat · ' + fMonth(curMonth()), body, tall: false });
+};
+A.monthShare = async () => {
+  const k = curMonth(), sl = monthSlides();
+  const c = document.createElement('canvas'); c.width = 1080; c.height = 1350;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 1080, 1350);
+  g.addColorStop(0, '#0a84ff'); g.addColorStop(.5, '#5e5ce6'); g.addColorStop(1, '#ff375f');
+  x.fillStyle = g; x.fillRect(0, 0, 1080, 1350);
+  const F = '-apple-system, system-ui, sans-serif';
+  x.fillStyle = '#fff';
+  x.font = `600 46px ${F}`; x.fillText('LIFE OS · ' + fMonth(k), 90, 150);
+  let y = 320;
+  sl.forEach(s => {
+    x.font = `500 42px ${F}`; x.globalAlpha = .9; x.fillText(s.l, 90, y);
+    x.globalAlpha = 1; x.font = `750 116px ${F}`; x.fillText(s.big, 90, y + 130);
+    y += 300;
+  });
+  x.font = `500 36px ${F}`; x.globalAlpha = .75; x.fillText('Privat & offline auf meinem Gerät', 90, 1270);
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  const name = `lifeos-monat-${k}.png`;
+  let file = null;
+  try { file = new File([blob], name, { type: 'image/png' }); } catch (e) { /* */ }
+  if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: 'Mein Monat' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  downloadBlob(blob, name);
+  toast('Bild gespeichert ✓');
+};
+
+/* Was wäre wenn: Sparen über die Zeit, mit einer vorsichtigen Rendite */
+const WI = { m: 100, y: 10 };
+function wiBody() {
+  const r = 0.04;
+  const plain = WI.m * 12 * WI.y;
+  const fv = WI.m * 12 * ((Math.pow(1 + r, WI.y) - 1) / r);
+  return `<p class="small muted">Verschiebe den Regler: Was passiert, wenn du jeden Monat etwas zur Seite legst?</p>
+    <div class="wi-val"><span id="wiMv">${eur0(WI.m)}</span><span class="muted"> pro Monat</span></div>
+    <input id="wiM" type="range" min="0" max="1000" step="25" value="${WI.m}" class="wi-range" aria-label="Monatlich sparen">
+    <div class="wi-chips">${[5, 10, 20, 30].map(y => `<button class="wi-chip ${WI.y === y ? 'on' : ''}" data-act="wiYears" data-y="${y}">${y} Jahre</button>`).join('')}</div>
+    <div class="card"><div class="kv"><span>Eingezahlt</span><span class="num" id="wiPlain">${eur0(plain)}</span></div>
+      <div class="kv"><span>Mit 4 % Rendite (Schätzung)</span><span class="num pos" id="wiFv">${eur0(fv)}</span></div></div>
+    <p class="small muted">Rechenbeispiel mit festen 4 % pro Jahr. Keine Garantie, Renditen schwanken.</p>`;
+}
+A.whatIf = () => {
+  const sh = openSheet({ title: 'Was wäre wenn', body: wiBody(), tall: false });
+  sh.el && sh.el.addEventListener('input', e => {
+    if (e.target.id !== 'wiM') return;
+    WI.m = +e.target.value;
+    const r = 0.04, plain = WI.m * 12 * WI.y, fv = WI.m * 12 * ((Math.pow(1 + r, WI.y) - 1) / r);
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('wiMv', eur0(WI.m)); set('wiPlain', eur0(plain)); set('wiFv', eur0(fv));
+  });
+  sh.refresh = () => sh.setBody(wiBody());
+};
+A.wiYears = d => { WI.y = +d.y; refreshSheets(); };
+
+/* Meilensteine aus Zielen mit Frist, auf der Lebensuhr als Alter */
+function milestonesHtml() {
+  const b = S.settings.birth;
+  if (!b) return '';
+  const gs = S.goals.filter(g => g.deadline && g.status !== 'done').sort(by(g => g.deadline));
+  if (!gs.length) return '';
+  const rows = gs.map(g => {
+    const age = Math.floor((new Date(g.deadline) - new Date(b)) / 31557600000);
+    return `<div class="kv"><span class="ms-age">Mit ${age}</span><span>${esc(g.title || g.name || 'Ziel')}</span><span class="num small muted">${esc(fMonth(g.deadline.slice(0, 7)))}</span></div>`;
+  }).join('');
+  return `<div class="list-h"><span>Meilensteine</span></div><div class="card">${rows}</div>`;
+}
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).

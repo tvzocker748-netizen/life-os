@@ -800,3 +800,39 @@ details.fold[open] > summary { margin-bottom: 14px; }
 
 /* ---------- Version 1.12.2: Update-Hinweis immer klickbar ---------- */
 #toast { z-index: 420; }
+
+/* ---------- Version 1.13: Tagesringe, Erinnerungen, Monatsrückblick, Was wäre wenn ---------- */
+.greet { font-size: 32px; font-weight: 750; letter-spacing: -.03em; line-height: 1.1; margin: 6px 2px 14px; animation: pfUp .6s both; }
+.rings-card { display: flex; flex-direction: column; gap: 14px; }
+.rings-row { display: flex; align-items: center; gap: 18px; }
+.rings-svg { width: 136px; height: 136px; flex: none; }
+.rg-track { fill: none; stroke: rgba(128,128,140,.16); }
+.rg-fg { fill: none; stroke-linecap: round; animation: ringFill 1.2s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes ringFill { from { stroke-dashoffset: var(--c); } to { stroke-dashoffset: var(--o); } }
+.rings-leg { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rg-leg { display: flex; gap: 10px; align-items: flex-start; }
+.rg-leg i { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex: none; }
+.rg-leg b { display: block; font-size: 15px; }
+.rg-leg span { font-size: 13px; color: var(--muted, #8e8e93); }
+.rings-btns { display: flex; gap: 8px; }
+.rings-btns .btn { flex: 1; }
+.otd-i { padding: 10px 0; border-top: 1px solid var(--sep, rgba(128,128,140,.2)); }
+.otd-i:first-of-type { border-top: 0; }
+.otd-y { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--accent); }
+.otd-i p { margin: 4px 0 0; font-size: 15px; line-height: 1.4; }
+.ms-track { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; margin: 0 -16px; padding: 4px 16px 8px; scrollbar-width: none; }
+.ms-track::-webkit-scrollbar { display: none; }
+.ms-slide { flex: 0 0 84%; scroll-snap-align: center; border-radius: 26px; padding: 26px; min-height: 280px; color: #fff; background: linear-gradient(145deg, #0a84ff, #bf5af2); display: flex; flex-direction: column; justify-content: flex-end; gap: 10px; box-shadow: 0 16px 40px rgba(10,132,255,.25); }
+.ms-slide.b { background: linear-gradient(145deg, #30d158, #0a84ff); }
+.ms-slide.c { background: linear-gradient(145deg, #ff9f0a, #ff375f); }
+.ms-l { font-size: 16px; opacity: .9; }
+.ms-big { font-size: 46px; font-weight: 750; letter-spacing: -.03em; line-height: 1.05; word-break: break-word; }
+.wi-val { font-size: 34px; font-weight: 750; letter-spacing: -.02em; margin-top: 8px; }
+.wi-val .muted { font-size: 16px; font-weight: 500; }
+.wi-range { width: 100%; accent-color: var(--accent); margin: 12px 0; }
+.wi-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.wi-chip { border: 0; border-radius: 99px; padding: 8px 14px; font: inherit; font-size: 14px; font-weight: 600; background: var(--fill); color: var(--text); }
+.wi-chip.on { background: var(--accent); color: #fff; }
+.ms-age { font-weight: 700; color: var(--accent); min-width: 64px; }
+.onb h1 { font-size: 40px; letter-spacing: -.035em; background: linear-gradient(90deg, #0a84ff, #bf5af2, #ff375f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@media (prefers-reduced-motion: reduce) { .rg-fg, .greet { animation: none !important; } }
