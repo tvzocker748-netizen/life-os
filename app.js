@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2922,23 +2922,54 @@ A.editBody = () => formSheet({
   }
 });
 
-function lwStripHtml(lw) {
-  const cells = [];
-  for (let i = 0; i < 52; i++) cells.push(`<i class="lw-s ${i < lw.year ? 'on' : i === lw.year ? 'now' : ''}" style="--h:${lwHue(lw.yearNo * 52 + i)}"></i>`);
-  return `<div class="lw-strip">${cells.join('')}</div>`;
+/* Lebensuhr: jedes Lebensjahr ist ein Ring, die Wochen laufen als Bogen darauf */
+function lebensuhrSvg(lw) {
+  const N = lw.maxAge, R0 = 34, R1 = 166, c = 180;
+  const parts = [];
+  for (let i = 0; i < N; i++) {
+    const r = R0 + (N > 1 ? i * (R1 - R0) / (N - 1) : 0);
+    const circ = 2 * Math.PI * r, seg = circ / 52;
+    const sw = Math.max(1.8, (R1 - R0) / N * 0.7).toFixed(2);
+    const hue = lwHue(i * 52).toFixed(1);
+    const rot = `transform="rotate(-90 ${c} ${c})"`;
+    parts.push(`<circle cx="${c}" cy="${c}" r="${r.toFixed(2)}" fill="none" stroke="var(--fill2)" stroke-width="${sw}" stroke-dasharray="${(seg * .7).toFixed(2)} ${(seg * .3).toFixed(2)}" ${rot}/>`);
+    if (i < lw.yearNo) parts.push(`<circle cx="${c}" cy="${c}" r="${r.toFixed(2)}" fill="none" stroke="hsl(${hue} 85% 58%)" stroke-width="${sw}" ${rot}/>`);
+    else if (i === lw.yearNo && lw.year > 0) {
+      const arc = lw.year / 52 * circ;
+      parts.push(`<circle cx="${c}" cy="${c}" r="${r.toFixed(2)}" fill="none" stroke="hsl(${hue} 85% 58%)" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${arc.toFixed(2)} ${circ.toFixed(2)}" ${rot}/>`);
+    }
+    if (i === lw.yearNo && lw.year < 52) {
+      const th = (-90 + 360 * lw.year / 52) * Math.PI / 180;
+      parts.push(`<circle class="lu-now" cx="${(c + r * Math.cos(th)).toFixed(2)}" cy="${(c + r * Math.sin(th)).toFixed(2)}" r="4.2" style="--h:${hue}"/>`);
+    }
+  }
+  return `<svg class="lu" viewBox="0 0 360 360" role="img" aria-label="Lebensuhr">${parts.join('')}</svg>`;
+}
+
+/* Mini-Ring für die Startseite: Fortschritt im aktuellen Lebensjahr */
+function miniRingSvg(lw) {
+  const r = 40, circ = 2 * Math.PI * r, arc = lw.year / 52 * circ;
+  const hue = lwHue(lw.yearNo * 52).toFixed(1);
+  return `<svg class="lu-mini" viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="${r}" fill="none" stroke="var(--fill2)" stroke-width="9"/>
+    <circle cx="50" cy="50" r="${r}" fill="none" stroke="hsl(${hue} 85% 58%)" stroke-width="9" stroke-linecap="round" stroke-dasharray="${arc.toFixed(2)} ${circ.toFixed(2)}" transform="rotate(-90 50 50)"/>
+    <text x="50" y="52" text-anchor="middle" class="lu-t1">${lw.year}</text>
+    <text x="50" y="66" text-anchor="middle" class="lu-t2">von 52</text></svg>`;
 }
 
 function lwCardHtml() {
   const lw = lifeWeeks();
   if (!lw) return `<div class="card tap" data-act="editBirth">
     <div class="between"><span class="card-t">Lebenswochen</span><span class="chev">${ic('chevR', 'sm')}</span></div>
-    <div style="font-size:17px;font-weight:600;margin-top:4px">Sieh dein Leben in Wochen</div>
-    <div class="small muted" style="margin-top:2px">Gib dein Geburtsdatum ein, um dein persönliches Raster zu sehen.</div></div>`;
-  return `<div class="card tap" data-act="lifeWeeks">
-    <div class="between"><span class="card-t">Lebenswochen</span><span class="chev">${ic('chevR', 'sm')}</span></div>
-    <div class="between" style="margin-top:6px;align-items:flex-end"><span class="big-num md">${n0(lw.lived)}</span><span class="small muted">Wochen gelebt · Jahr ${lw.yearNo + 1}</span></div>
-    ${lwStripHtml(lw)}
-    <div class="small muted" style="margin-top:8px">Dieses Lebensjahr: ${lw.year} von 52 Wochen</div></div>`;
+    <div style="font-size:17px;font-weight:600;margin-top:4px">Sieh dein Leben als Lebensuhr</div>
+    <div class="small muted" style="margin-top:2px">Gib dein Geburtsdatum ein, um deine persönliche Uhr zu sehen.</div></div>`;
+  return `<div class="card tap lw-card" data-act="lifeWeeks">
+    <div class="between"><span class="card-t">Lebensuhr</span><span class="chev">${ic('chevR', 'sm')}</span></div>
+    <div class="lw-row">
+      <div><div class="lw-big">${n0(lw.lived)}</div><div class="small muted">Wochen gelebt</div>
+        <div class="small muted" style="margin-top:10px">Lebensjahr ${lw.yearNo + 1} · noch ${52 - lw.year} Wochen</div></div>
+      ${miniRingSvg(lw)}
+    </div></div>`;
 }
 
 function weightSummary() {
@@ -2950,19 +2981,14 @@ function weightSummary() {
 
 function lwSheetHtml() {
   const lw = lifeWeeks();
-  const cells = [];
-  for (let i = 0; i < lw.total; i++) {
-    const cls = i === lw.lived ? 'lw now' : i < lw.lived ? 'lw on' : 'lw';
-    cells.push(`<i class="${cls}" style="--h:${lwHue(i).toFixed(1)}"></i>`);
-  }
   const ws = weightSummary();
   const h = S.settings.height;
   let body = `<div class="lw-hero">
       <div><div class="lw-big">${n0(lw.lived)}</div><div class="small muted">Wochen gelebt</div></div>
       <div class="lw-side"><div class="lw-big sm">${n1(lw.lived / 52)}</div><div class="small muted">von ${lw.maxAge} Jahren · ${pct(lw.pct)}</div></div>
     </div>
-    <div class="lw-grid">${cells.join('')}</div>
-    <div class="lw-legend"><span><i class="lw on"></i>gelebt</span><span><i class="lw now"></i>diese Woche</span><span><i class="lw"></i>offen</span></div>`;
+    <div class="lu-wrap">${lebensuhrSvg(lw)}</div>
+    <div class="lw-legend"><span><i class="lw-dot on"></i>gelebt</span><span><i class="lw-dot now"></i>diese Woche</span><span><i class="lw-dot"></i>offen</span></div>`;
   body += `<div class="list-h"><span>Körperdaten</span></div><div class="card">
       <div class="kv"><span>Größe</span><span class="num">${h ? h + ' cm' : '–'}</span></div>
       <div class="kv"><span>Gewicht heute</span><span class="num">${ws && ws.last.date === today() ? n1(ws.last.kg) + ' kg' : '–'}</span></div>
@@ -2973,7 +2999,7 @@ function lwSheetHtml() {
   } else {
     body += `<p class="small muted">Trage ab und zu dein Gewicht ein, dann erscheint hier dein Verlauf.</p>`;
   }
-  body += `<p class="small muted">Jedes Kästchen ist eine Woche. Die Farbe wechselt mit dem Lebensalter. Die Daten bleiben nur auf diesem Gerät.</p>
+  body += `<p class="small muted">Jeder Ring ist ein Lebensjahr, jeder Bogen eine Woche. Die Daten bleiben nur auf diesem Gerät.</p>
     <button class="btn block" data-act="editBody">Körperdaten & Raster bearbeiten</button>`;
   return body;
 }

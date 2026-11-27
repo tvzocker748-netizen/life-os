@@ -661,3 +661,20 @@ body::before {
 .lw-s { display: block; aspect-ratio: 1; border-radius: 1.5px; box-shadow: inset 0 0 0 .6px var(--sep); }
 .lw-s.on { background: hsl(var(--h) 85% 58%); }
 .lw-s.now { background: hsl(var(--h) 95% 62%); box-shadow: 0 0 6px hsl(var(--h) 95% 60% / .9); }
+
+/* ---------- Version 1.8: Lebensuhr & kreativeres Design ---------- */
+.lu { width: 100%; max-width: 360px; height: auto; display: block; margin: 4px auto 8px; overflow: visible; }
+.lu-wrap { display: flex; justify-content: center; padding: 6px 0 2px; }
+.lu-now { fill: hsl(var(--h) 95% 62%); filter: drop-shadow(0 0 6px hsl(var(--h) 95% 60%)); }
+.lw-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--fill2); margin-right: 5px; vertical-align: 0; }
+.lw-dot.on { background: hsl(205 85% 58%); }
+.lw-dot.now { background: hsl(260 95% 62%); }
+.lw-legend { display: flex; gap: 14px; justify-content: center; font-size: 12px; color: var(--text2); margin: 4px 0 16px; }
+.lw-legend span { display: inline-flex; align-items: center; }
+.lw-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.lu-mini { width: 104px; height: 104px; flex: none; }
+.lu-t1 { font-size: 22px; font-weight: 760; fill: var(--text); }
+.lu-t2 { font-size: 9px; fill: var(--text2); }
+.lw-card { background: radial-gradient(120% 120% at 100% 0%, rgba(191, 90, 242, .14), transparent 55%), var(--glass); }
+.section-h h2 { background: linear-gradient(100deg, var(--text) 35%, #5e5ce6 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.card { background: radial-gradient(110% 90% at 100% 0%, rgba(94, 92, 230, .07), transparent 60%), var(--glass); }
