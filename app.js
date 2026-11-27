@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.10.2';
+const APP_VERSION = '1.11.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -3197,6 +3197,147 @@ A.editBody = () => formSheet({
     render(); refreshSheets(); toast('Gespeichert');
   }
 });
+
+/* ---------------- Geführtes Profil (Pflicht-Abfrage) ---------------- */
+const PF_STEPS = ['intro', 'birth', 'sex', 'height', 'weight', 'smoke', 'sport', 'done'];
+let PF = { on: false, i: 0, d: {}, err: '' };
+
+function pfNeeds() { return !S.settings.profileV || S.settings.profileV < 2; }
+
+function startProfil(force) {
+  if (PF.on || (!force && !pfNeeds())) return;
+  const s = S.settings;
+  const lw = S.weights.slice().sort(by(w => w.date)).pop();
+  PF = {
+    on: true, i: 0, err: '',
+    d: {
+      birth: s.birth || '',
+      sex: s.sex ? s.sex : (s.birth ? s.sex : undefined),
+      height: s.height ? String(s.height) : '',
+      weight: lw ? String(lw.kg).replace('.', ',') : '',
+      smoke: s.smoke ?? undefined,
+      sport: s.sport === 0 ? 'w' : s.sport === 75 ? 's' : s.sport === 150 ? 'v' : (s.sport === null ? undefined : undefined)
+    }
+  };
+  renderProfil();
+}
+
+/** Schreibt den Entwurf in die Einstellungen (nur im Speicher, bis „Fertig“). */
+function pfApply() {
+  const d = PF.d;
+  S.settings.birth = d.birth;
+  S.settings.sex = d.sex === 'x' || !d.sex ? null : d.sex;
+  const h = parseNum(d.height);
+  S.settings.height = isFinite(h) && h > 0 ? Math.round(h) : null;
+  S.settings.smoke = d.smoke === 'k' ? null : (d.smoke || null);
+  S.settings.sport = ({ w: 0, s: 75, v: 150 })[d.sport] ?? null;
+  const w = parseNum(d.weight);
+  if (isFinite(w) && w > 0) {
+    const rec = { id: 'w-' + today(), kind: 'weight', date: today(), kg: Math.round(w * 10) / 10 };
+    S.weights = S.weights.filter(x => x.id !== rec.id).concat(rec);
+  }
+}
+
+const PF_Q = {
+  birth: { t: 'Wann bist du geboren?', h: 'Daraus berechnen wir dein Alter. Diese Angabe ist Pflicht.' },
+  sex: { t: 'Welches Geschlecht hast du?', h: 'Die Sterbetafeln unterscheiden nach Geschlecht. Mit „Keine Angabe“ wird der Mittelwert beider Geschlechter genommen.',
+    opts: [['f', 'Weiblich'], ['m', 'Männlich'], ['x', 'Divers oder keine Angabe']] },
+  height: { t: 'Wie groß bist du?', h: 'In Zentimetern. Wird für den BMI gebraucht.' },
+  weight: { t: 'Wie viel wiegst du heute?', h: 'In Kilogramm. Wird für den BMI gebraucht. Weitere Werte kannst du später eintragen.' },
+  smoke: { t: 'Rauchst du?', h: 'Rauchen ist einer der stärksten Faktoren für die Lebenserwartung.',
+    opts: [['nein', 'Nein'], ['bis10', 'Bis 10 pro Tag'], ['mehr10', 'Über 10 pro Tag'], ['k', 'Keine Angabe']] },
+  sport: { t: 'Wie viel bewegst du dich pro Woche?', h: 'Die WHO empfiehlt 150 Minuten moderate Bewegung pro Woche.',
+    opts: [['w', 'Unter 75 Minuten'], ['s', '75 bis 149 Minuten'], ['v', '150 Minuten oder mehr'], ['k', 'Keine Angabe']] }
+};
+
+function profilHtml() {
+  const step = PF_STEPS[PF.i];
+  const dots = PF_STEPS.map((s, k) => `<i class="${k <= PF.i ? 'on' : ''}"></i>`).join('');
+  let main = '';
+  if (step === 'intro') {
+    main = `<h1 class="pf-q">Dein Profil</h1>
+      <p class="pf-h">Ein paar kurze Fragen, damit deine Lebensuhr und deine Prognose zu dir passen. Du beantwortest jede Frage selbst, nichts wird geschätzt.</p>
+      <ul class="pf-h pf-list"><li>Dauert etwa eine Minute</li><li>Du kannst jede Angabe später ändern: Lebensuhr, dann „Körper & Raster“</li><li>Deine Finanzdaten werden dabei nicht verändert</li><li>Alles bleibt auf deinem Gerät</li></ul>`;
+  } else if (step === 'birth') {
+    const q = PF_Q.birth;
+    main = `<h1 class="pf-q">${q.t}</h1><p class="pf-h">${q.h}</p>
+      <input id="pfIn" class="in" type="date" min="1900-01-01" max="${today()}" value="${esc(PF.d.birth || '')}" aria-label="Geburtsdatum">`;
+  } else if (step === 'height' || step === 'weight') {
+    const q = PF_Q[step], f = step, skipped = PF.d[f] === 'k';
+    main = `<h1 class="pf-q">${q.t}</h1><p class="pf-h">${q.h}</p>
+      <input id="pfIn" class="in" inputmode="decimal" placeholder="${step === 'height' ? 'z. B. 178' : 'z. B. 78,5'}" value="${skipped ? '' : esc(PF.d[f] || '')}" aria-label="${q.t}">
+      <div class="pf-opts"><button class="pf-opt ${skipped ? 'on' : ''}" data-act="pfPick" data-f="${f}" data-k="k">Keine Angabe</button></div>`;
+  } else if (step === 'done') {
+    main = `<h1 class="pf-q">Fast geschafft</h1><p class="pf-h">So sieht deine Prognose mit diesen Angaben aus. Alles lässt sich später unter Lebensuhr, „Körper & Raster“ ändern.</p>
+      ${leBlock()}`;
+  } else {
+    const q = PF_Q[step];
+    main = `<h1 class="pf-q">${q.t}</h1><p class="pf-h">${q.h}</p>
+      <div class="pf-opts">${q.opts.map(([k, l]) => `<button class="pf-opt ${PF.d[step] === k ? 'on' : ''}" data-act="pfPick" data-f="${step}" data-k="${k}">${esc(l)}</button>`).join('')}</div>`;
+  }
+  const last = step === 'done';
+  const back = PF.i > 0 ? `<button class="btn gray" data-act="pfBack">Zurück</button>` : '';
+  const next = step === 'intro' ? `<button class="btn" data-act="pfGo">Los geht's</button>`
+    : last ? `<button class="btn" data-act="pfFinish">Profil speichern</button>`
+    : `<button class="btn" data-act="pfNext">Weiter</button>`;
+  return `<div class="pf-in"><div class="pf-dots">${dots}</div>${main}
+    <div class="pf-err" role="alert">${esc(PF.err)}</div>
+    <div class="pf-nav">${back}${next}</div></div>`;
+}
+
+function renderProfil() {
+  let el = document.getElementById('profil');
+  if (!el) { el = document.createElement('div'); el.id = 'profil'; document.body.appendChild(el); }
+  el.hidden = !PF.on;
+  el.innerHTML = PF.on ? profilHtml() : '';
+}
+
+A.pfGo = () => { PF.i = 1; PF.err = ''; renderProfil(); };
+A.pfBack = () => { PF.i = Math.max(0, PF.i - 1); PF.err = ''; renderProfil(); };
+A.pfPick = d => {
+  PF.d[d.f] = d.k; PF.err = ''; renderProfil();
+};
+function pfReadInput() {
+  const inp = document.getElementById('pfIn');
+  if (!inp) return;
+  const step = PF_STEPS[PF.i];
+  if (step === 'birth') PF.d.birth = inp.value;
+  if ((step === 'height' || step === 'weight') && PF.d[step] !== 'k') PF.d[step] = inp.value.trim();
+}
+function pfValidate() {
+  const step = PF_STEPS[PF.i], d = PF.d;
+  if (step === 'birth') {
+    if (!d.birth || !/^\d{4}-\d{2}-\d{2}$/.test(d.birth) || d.birth > today() || d.birth < '1900-01-01') return 'Bitte ein gültiges Geburtsdatum eingeben.';
+  }
+  if (step === 'sex' || step === 'smoke' || step === 'sport') { if (!d[step]) return 'Bitte wähle eine Antwort. „Keine Angabe“ ist auch möglich.'; }
+  if (step === 'height' && d.height !== 'k') {
+    const h = parseNum(d.height); if (!(h >= 50 && h <= 260)) return 'Bitte eine Größe zwischen 50 und 260 cm eingeben oder „Keine Angabe“ wählen.';
+  }
+  if (step === 'weight' && d.weight !== 'k') {
+    const w = parseNum(d.weight); if (!(w >= 20 && w <= 400)) return 'Bitte ein Gewicht zwischen 20 und 400 kg eingeben oder „Keine Angabe“ wählen.';
+  }
+  return '';
+}
+A.pfNext = () => {
+  pfReadInput();
+  const err = pfValidate();
+  if (err) { PF.err = err; renderProfil(); return; }
+  PF.i = Math.min(PF_STEPS.length - 1, PF.i + 1); PF.err = '';
+  if (PF_STEPS[PF.i] === 'done') pfApply();
+  renderProfil();
+};
+A.pfFinish = async () => {
+  pfApply();
+  S.settings.profileV = 2;
+  S.settings.onboarded = true;
+  S.settings.createdAt = S.settings.createdAt || today();
+  await saveSettings();
+  if (S.weights.some(w => w.id === 'w-' + today())) await DB.put('meta', S.weights.find(w => w.id === 'w-' + today()));
+  PF = { on: false, i: 0, d: {}, err: '' };
+  renderProfil();
+  render(true);
+  toast('Profil gespeichert');
+};
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).
@@ -3975,12 +4116,14 @@ A.obStart = async () => {
   await finishOnboarding();
   const sh = topSheet(); if (sh) { sh.opts.locked = false; sh.close(); }
   render(true);
+  startProfil();
   toast('Willkommen bei LIFE OS 👋');
 };
 A.obDemo = async () => {
   await finishOnboarding();
   const sh = topSheet(); if (sh) { sh.opts.locked = false; sh.close(); }
   await A.loadDemo();
+  startProfil();
 };
 
 /* ---------------- Start ---------------- */
@@ -4031,6 +4174,7 @@ async function init() {
     if (n) toast(`${n} automatische Buchung${n > 1 ? 'en' : ''} erstellt`);
   } catch (e) { console.error(e); render(true); }
   if (!S.settings.onboarded) showOnboarding();
+  else startProfil();
   registerSW();
 }
 init();
