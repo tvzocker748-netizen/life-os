@@ -708,3 +708,12 @@ details.fold[open] > summary { margin-bottom: 14px; }
 .ph-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; margin: 4px 0 12px; gap: 2px; }
 .ph-bar i { display: block; min-width: 6px; }
 .ph-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+
+/* ---------- Version 1.10.1: sichtbarer Richtwert Lebenserwartung ---------- */
+.le-card { margin: 12px 0; padding: 14px 16px; border-radius: 18px; background: var(--glass-strong, var(--fill)); border: 1px solid var(--glass-edge, transparent); }
+.le-l { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+.le-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 2px 0 6px; }
+.le-big { font-size: 38px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.le-side { font-size: 16px; font-weight: 650; }
+.le-line { margin-top: 8px; font-size: 13px; color: var(--muted, #888); }
+.le-line b { color: var(--text); }

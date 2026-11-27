@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.10.0';
+const APP_VERSION = '1.10.1';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2969,6 +2969,12 @@ function miniRingSvg(lw) {
     <text x="50" y="66" text-anchor="middle" class="lu-t2">von 52</text></svg>`;
 }
 
+function leLineHtml() {
+  const e = lifeExpectancyEst();
+  if (e == null) return '';
+  return `<div class="le-line">Richtwert Lebenserwartung <b>ca. ${Math.round(e)} Jahre</b> · noch ca. ${Math.round(Math.max(0, e - ageYears()))}</div>`;
+}
+
 function lwCardHtml() {
   const lw = lifeWeeks();
   if (!lw) return `<div class="card tap" data-act="editBirth">
@@ -2981,7 +2987,7 @@ function lwCardHtml() {
       <div><div class="lw-big">${n0(lw.lived)}</div><div class="small muted">Wochen gelebt</div>
         <div class="small muted" style="margin-top:10px">Lebensjahr ${lw.yearNo + 1} · noch ${52 - lw.year} Wochen</div></div>
       ${miniRingSvg(lw)}
-    </div><div class="lw-say">${esc(lebensSatz())}</div></div>`;
+    </div>${leLineHtml()}<div class="lw-say">${esc(lebensSatz())}</div></div>`;
 }
 
 function weightSummary() {
@@ -2999,6 +3005,7 @@ function lwSheetHtml() {
       <div><div class="lw-big">${n0(lw.lived)}</div><div class="small muted">Wochen gelebt</div></div>
       <div class="lw-side"><div class="lw-big sm">${n1(lw.lived / 52)}</div><div class="small muted">von ${lw.maxAge} Jahren · ${pct(lw.pct)}</div></div>
     </div>
+    ${leBlock()}
     <div class="lu-wrap">${lebensuhrSvg(lw)}</div>
     <div class="lw-legend"><span><i class="lw-dot grad"></i>gelebt · Farbe nach Alter</span><span><i class="lw-dot now"></i>diese Woche</span><span><i class="lw-dot"></i>offen</span></div>`;
   body += `<div class="list-h"><span>Lebensphasen</span></div>${phasesHtml()}`;
@@ -3023,12 +3030,40 @@ A.lifeWeeks = () => {
 };
 
 /* ---------------- Lebensuhr wird schlau ---------------- */
-/** Richtwert für die Lebenserwartung (grobe Größenordnung, kein Prognosewert). */
+/* Ankerwerte: Destatis, Periodensterbetafel 2025. Erwartetes Gesamtalter bei Geburt,
+   mit 30 Jahren und mit 65 Jahren (aus der fernen Lebenserwartung: 79,1 / 79,2 / 83,2 bzw. 83,6 / 83,7 / 86,2). */
+const LE_ANCHORS = { m: [79.1, 79.2, 83.2], f: [83.6, 83.7, 86.2] };
+const leLerp = (a, b, t) => a + (b - a) * t;
+function ageYears(d = S.settings.birth) {
+  if (!d) return null;
+  return (new Date(today()) - new Date(d)) / 31557600000;
+}
+/** Erwartetes Gesamtalter für ein Alter und Geschlecht ('m', 'f' oder 'x' = Mittel). */
+function leTotalAt(age, sex) {
+  const one = s => {
+    const A = LE_ANCHORS[s];
+    if (age <= 30) return leLerp(A[0], A[1], age / 30);
+    if (age <= 65) return leLerp(A[1], A[2], (age - 30) / 35);
+    const rem = Math.max(1, (A[2] - 65) - (age - 65) * 0.9); // Restlebenszeit sinkt mit dem Alter
+    return age + rem;
+  };
+  return sex === 'm' || sex === 'f' ? one(sex) : (one('m') + one('f')) / 2;
+}
+/** Richtwert für das erwartete Gesamtalter (grobe Größenordnung, keine Prognose). */
 function lifeExpectancyEst() {
-  const b = S.settings.birth, sex = S.settings.sex;
-  if (!b || !sex) return null;
-  const base = sex === 'm' ? 78.5 : 83.3;
-  return base + (+b.slice(0, 4) - 2000) * 0.1;
+  const age = ageYears();
+  if (age == null || age < 0) return null;
+  return leTotalAt(age, S.settings.sex || 'x');
+}
+/** Sichtbarer Block mit Richtwert und Restlebenszeit. */
+function leBlock() {
+  const e = lifeExpectancyEst();
+  if (e == null) return `<div class="le-card"><div class="le-l">Richtwert Lebenserwartung</div><div class="small muted">Trage dein Geburtsdatum ein, dann erscheint hier dein Richtwert.</div></div>`;
+  const rem = Math.max(0, e - ageYears());
+  const note = S.settings.sex ? 'Basis: Sterbetafel 2025 des Statistischen Bundesamts, nach Alter und Geschlecht. Grober Richtwert, keine Prognose.' : 'Ohne Angabe zum Geschlecht: Mittelwert beider Geschlechter. Angabe unter „Körper & Raster“ möglich.';
+  return `<div class="le-card"><div class="le-l">Richtwert Lebenserwartung</div>
+    <div class="le-row"><div><span class="le-big">${Math.round(e)}</span> <span class="muted">Jahre</span></div><div class="le-side">noch ca. ${Math.round(rem)} Jahre</div></div>
+    <div class="small muted">${note}</div></div>`;
 }
 /** Automatisches Raster-Ende: Richtwert + 5 Jahre, auf 5 gerundet, zwischen 80 und 100. */
 function autoMaxAge() {
@@ -3110,7 +3145,7 @@ A.editBody = () => formSheet({
   title: 'Körper & Raster',
   fields: [
     { key: 'sex', label: 'Für den Richtwert', type: 'seg', options: [{ v: 'f', l: 'Frau' }, { v: 'm', l: 'Mann' }, { v: 'x', l: 'Keine Angabe' }], hint: 'Nur für die grobe Lebenserwartung. Wird nur auf diesem Gerät gespeichert.' },
-    { key: 'maxAge', label: 'Raster-Ende (Alter)', type: 'seg', numeric: true, options: [{ v: 0, l: 'Auto' }, { v: 80, l: '80' }, { v: 90, l: '90' }, { v: 100, l: '100' }], hint: lifeExpectancyEst() ? `Auto ergibt ${autoMaxAge()} Jahre (Richtwert ca. ${Math.round(lifeExpectancyEst())} Jahre).` : 'Auto nutzt einen Richtwert, sobald du Geschlecht und Geburtsdatum angibst.' },
+    { key: 'maxAge', label: 'Raster-Ende (Alter)', type: 'seg', numeric: true, options: [{ v: 0, l: 'Auto' }, { v: 80, l: '80' }, { v: 90, l: '90' }, { v: 100, l: '100' }], hint: lifeExpectancyEst() ? `Auto ergibt ${autoMaxAge()} Jahre (Richtwert ca. ${Math.round(lifeExpectancyEst())} Jahre).` : 'Auto nutzt einen Richtwert, sobald du dein Geburtsdatum angibst.' },
     { key: 'height', label: 'Körpergröße (cm)', type: 'text', placeholder: 'z. B. 178', cap: false },
     { key: 'weight', label: 'Gewicht heute (kg)', type: 'text', placeholder: 'z. B. 78,5', cap: false, hint: 'Ein Eintrag pro Tag. Ein neuer Wert am selben Tag ersetzt den alten.' },
     { key: 'hideW', label: 'Gewicht in der Ansicht ausblenden', type: 'toggle', group: true, hint: 'Die Werte bleiben gespeichert, werden aber nicht angezeigt. Gewicht ist ein sensibler Wert: Trage nur ein, was dir guttut.' }
