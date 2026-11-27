@@ -742,3 +742,58 @@ details.fold[open] > summary { margin-bottom: 14px; }
 
 /* ---------- Version 1.12: einmaliger Neustart ---------- */
 .pf-nav-col { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+
+/* ---------- Version 1.12.1: Intro-Look für das Profil ---------- */
+#profil { background: var(--bg); isolation: isolate; justify-content: center; }
+#profil::before { content: ""; position: fixed; inset: -30%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(40% 35% at 20% 25%, rgba(10,132,255,.38), transparent 70%),
+    radial-gradient(38% 34% at 80% 30%, rgba(191,90,242,.32), transparent 70%),
+    radial-gradient(42% 36% at 60% 85%, rgba(255,159,10,.24), transparent 70%),
+    radial-gradient(36% 30% at 15% 80%, rgba(48,209,88,.18), transparent 70%);
+  filter: blur(30px); animation: pfDrift 16s ease-in-out infinite alternate; }
+@keyframes pfDrift { from { transform: translate3d(-3%, -2%, 0) scale(1); } to { transform: translate3d(3%, 2%, 0) scale(1.06); } }
+@keyframes pfFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+@keyframes pfIn { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes pfInBack { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@keyframes pfUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.pf-in { gap: 18px; }
+.pf-prog { height: 4px; border-radius: 99px; background: var(--fill); overflow: hidden; }
+.pf-prog i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #0a84ff, #bf5af2); transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.pf-hero { display: flex; justify-content: center; margin: 14px 0 8px; }
+.pf-orb { width: 124px; height: 124px; border-radius: 34px; display: grid; place-items: center; background: linear-gradient(145deg, #0a84ff, #bf5af2 60%, #ff9f0a); box-shadow: 0 18px 50px rgba(10,132,255,.35), inset 0 1px 0 rgba(255,255,255,.35); animation: pfFloat 4s ease-in-out infinite; }
+.pf-orb img { width: 86px; height: 86px; border-radius: 22px; }
+.pf-orb.warn { background: linear-gradient(145deg, #ff453a, #ff9f0a); box-shadow: 0 18px 50px rgba(255,69,58,.3), inset 0 1px 0 rgba(255,255,255,.35); color: #fff; }
+.pf-orb.warn .ic { width: 48px; height: 48px; }
+.pf-title { font-size: 40px; font-weight: 750; letter-spacing: -.035em; line-height: 1.05; margin: 0; animation: pfUp .6s .05s both; }
+.pf-title.sm { font-size: 31px; }
+.pf-grad { background: linear-gradient(90deg, #0a84ff, #bf5af2, #ff375f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pf-sub { font-size: 17px; line-height: 1.45; color: var(--muted, #8e8e93); margin: 0; animation: pfUp .6s .12s both; }
+.pf-feats { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.pf-feat { display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-radius: 20px; background: var(--glass-strong, var(--fill)); border: 1px solid var(--glass-edge, transparent); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); animation: pfUp .6s both; }
+.pf-feats .pf-feat:nth-child(2) { animation-delay: .08s; }
+.pf-feats .pf-feat:nth-child(3) { animation-delay: .16s; }
+.pf-feats .pf-feat:nth-child(4) { animation-delay: .22s; }
+.pf-fi { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: rgba(10,132,255,.14); color: var(--accent); flex: none; }
+.pf-fi .ic { width: 22px; height: 22px; }
+.pf-feat b { display: block; font-size: 16px; }
+.pf-feat span { font-size: 14px; color: var(--muted, #8e8e93); }
+.pf-qicon { width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; background: linear-gradient(145deg, #0a84ff, #bf5af2); color: #fff; box-shadow: 0 10px 30px rgba(10,132,255,.3); }
+.pf-qicon .ic { width: 28px; height: 28px; }
+.pf-step { display: flex; flex-direction: column; gap: 14px; animation: pfIn .5s cubic-bezier(.2,.8,.2,1) both; }
+.pf-step.back { animation-name: pfInBack; }
+.pf-big { width: 100%; font: inherit; font-size: 30px; font-weight: 650; letter-spacing: -.02em; padding: 14px 4px; border: 0; border-bottom: 2px solid var(--glass-edge, #ccc); background: transparent; color: var(--text); outline: none; }
+.pf-big:focus { border-bottom-color: var(--accent); }
+.pf-opts { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.pf-opt { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 18px 20px; border-radius: 20px; border: 1px solid var(--glass-edge, transparent); background: var(--glass-strong, var(--fill)); font: inherit; font-size: 17px; font-weight: 600; color: var(--text); cursor: pointer; transition: transform .15s, background .25s, box-shadow .25s; text-align: left; }
+.pf-opt:active { transform: scale(.98); }
+.pf-opt.on { background: linear-gradient(135deg, rgba(10,132,255,.95), rgba(191,90,242,.95)); color: #fff; border-color: transparent; box-shadow: 0 10px 30px rgba(10,132,255,.25); }
+.pf-rad { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--glass-edge, #bbb); display: grid; place-items: center; flex: none; font-style: normal; }
+.pf-opt.on .pf-rad { background: #fff; border-color: #fff; color: #0a84ff; }
+.pf-rad .ic { width: 14px; height: 14px; }
+.pf-nav { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; animation: pfUp .6s .2s both; }
+.pf-cta { width: 100%; min-height: 56px; border: 0; border-radius: 18px; font: inherit; font-size: 17px; font-weight: 650; color: #fff; background: linear-gradient(135deg, #0a84ff, #5e5ce6 60%, #bf5af2); box-shadow: 0 12px 32px rgba(10,132,255,.35); cursor: pointer; }
+.pf-cta:active { transform: scale(.98); }
+.pf-back { border: 0; background: none; font: inherit; font-size: 16px; color: var(--accent); padding: 10px; cursor: pointer; align-self: center; }
+.pf-err { min-height: 18px; }
+@media (prefers-reduced-motion: reduce) { #profil::before, .pf-orb, .pf-step, .pf-feat, .pf-title, .pf-sub, .pf-nav { animation: none !important; } }

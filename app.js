@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.12.0';
+const APP_VERSION = '1.12.1';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -3250,40 +3250,51 @@ const PF_Q = {
     opts: [['w', 'Unter 75 Minuten'], ['s', '75 bis 149 Minuten'], ['v', '150 Minuten oder mehr'], ['k', 'Keine Angabe']] }
 };
 
+function pfProg() {
+  const pct = (PF.i / (PF_STEPS.length - 1)) * 100;
+  return `<div class="pf-prog" aria-hidden="true"><i style="width:${pct.toFixed(0)}%"></i></div>`;
+}
+
 function profilHtml() {
   if (PF.mode === 'reset') return resetHtml();
   const step = PF_STEPS[PF.i];
-  const dots = PF_STEPS.map((s, k) => `<i class="${k <= PF.i ? 'on' : ''}"></i>`).join('');
+  const dir = PF.dir < 0 ? ' back' : '';
   let main = '';
   if (step === 'intro') {
-    main = `<h1 class="pf-q">Dein Profil</h1>
-      <p class="pf-h">Ein paar kurze Fragen, damit deine Lebensuhr und deine Prognose zu dir passen. Du beantwortest jede Frage selbst, nichts wird geschätzt.</p>
-      <ul class="pf-h pf-list"><li>Dauert etwa eine Minute</li><li>Du kannst jede Angabe später ändern: Lebensuhr, dann „Körper & Raster“</li><li>Deine Finanzdaten werden dabei nicht verändert</li><li>Alles bleibt auf deinem Gerät</li></ul>`;
+    main = `<div class="pf-hero"><div class="pf-orb"><img src="icon-192.png" alt=""></div></div>
+      <h1 class="pf-title">Lass uns dich <span class="pf-grad">kennenlernen.</span></h1>
+      <p class="pf-sub">Ein paar Fragen, damit deine Lebensuhr und deine Prognose wirklich zu dir passen.</p>
+      <div class="pf-feats">
+        <div class="pf-feat"><span class="pf-fi">${ic('clock')}</span><div><b>In einer Minute</b><span>Kurz und ohne Vorwissen</span></div></div>
+        <div class="pf-feat"><span class="pf-fi">${ic('shield')}</span><div><b>Nur auf deinem Gerät</b><span>Nichts verlässt dein Handy</span></div></div>
+        <div class="pf-feat"><span class="pf-fi">${ic('edit')}</span><div><b>Jederzeit änderbar</b><span>Unter Lebensuhr, „Körper &amp; Raster“</span></div></div>
+      </div>`;
+  } else if (step === 'done') {
+    main = `<div class="pf-step${dir}"><h1 class="pf-title sm">Dein Profil ist <span class="pf-grad">bereit.</span></h1>
+      <p class="pf-sub">So sieht deine Prognose mit diesen Angaben aus. Alles lässt sich später ändern.</p>
+      ${leBlock()}</div>`;
   } else if (step === 'birth') {
     const q = PF_Q.birth;
-    main = `<h1 class="pf-q">${q.t}</h1><p class="pf-h">${q.h}</p>
-      <input id="pfIn" class="in" type="date" min="1900-01-01" max="${today()}" value="${esc(PF.d.birth || '')}" aria-label="Geburtsdatum">`;
+    main = `<div class="pf-step${dir}"><div class="pf-qicon">${ic('cal')}</div><h1 class="pf-title sm">${q.t}</h1><p class="pf-sub">${q.h}</p>
+      <input id="pfIn" class="pf-big" type="date" min="1900-01-01" max="${today()}" value="${esc(PF.d.birth || '')}" aria-label="Geburtsdatum"></div>`;
   } else if (step === 'height' || step === 'weight') {
     const q = PF_Q[step], f = step, skipped = PF.d[f] === 'k';
-    main = `<h1 class="pf-q">${q.t}</h1><p class="pf-h">${q.h}</p>
-      <input id="pfIn" class="in" inputmode="decimal" placeholder="${step === 'height' ? 'z. B. 178' : 'z. B. 78,5'}" value="${skipped ? '' : esc(PF.d[f] || '')}" aria-label="${q.t}">
-      <div class="pf-opts"><button class="pf-opt ${skipped ? 'on' : ''}" data-act="pfPick" data-f="${f}" data-k="k">Keine Angabe</button></div>`;
-  } else if (step === 'done') {
-    main = `<h1 class="pf-q">Fast geschafft</h1><p class="pf-h">So sieht deine Prognose mit diesen Angaben aus. Alles lässt sich später unter Lebensuhr, „Körper & Raster“ ändern.</p>
-      ${leBlock()}`;
+    main = `<div class="pf-step${dir}"><div class="pf-qicon">${ic(step === 'height' ? 'up' : 'scale')}</div><h1 class="pf-title sm">${q.t}</h1><p class="pf-sub">${q.h}</p>
+      <input id="pfIn" class="pf-big" inputmode="decimal" placeholder="${step === 'height' ? '178 cm' : '78,5 kg'}" value="${skipped ? '' : esc(PF.d[f] || '')}" aria-label="${q.t}">
+      <div class="pf-opts"><button class="pf-opt ${skipped ? 'on' : ''}" data-act="pfPick" data-f="${f}" data-k="k"><span>Keine Angabe</span><i class="pf-rad">${skipped ? ic('check') : ''}</i></button></div></div>`;
   } else {
-    const q = PF_Q[step];
-    main = `<h1 class="pf-q">${q.t}</h1><p class="pf-h">${q.h}</p>
-      <div class="pf-opts">${q.opts.map(([k, l]) => `<button class="pf-opt ${PF.d[step] === k ? 'on' : ''}" data-act="pfPick" data-f="${step}" data-k="${k}">${esc(l)}</button>`).join('')}</div>`;
+    const q = PF_Q[step], icon = { sex: 'id', smoke: 'flame', sport: 'repeat' }[step] || 'star';
+    main = `<div class="pf-step${dir}"><div class="pf-qicon">${ic(icon)}</div><h1 class="pf-title sm">${q.t}</h1><p class="pf-sub">${q.h}</p>
+      <div class="pf-opts">${q.opts.map(([k, l]) => { const on = PF.d[step] === k; return `<button class="pf-opt ${on ? 'on' : ''}" data-act="pfPick" data-f="${step}" data-k="${k}"><span>${esc(l)}</span><i class="pf-rad">${on ? ic('check') : ''}</i></button>`; }).join('')}</div></div>`;
   }
   const last = step === 'done';
-  const back = PF.i > 0 ? `<button class="btn gray" data-act="pfBack">Zurück</button>` : '';
-  const next = step === 'intro' ? `<button class="btn" data-act="pfGo">Los geht's</button>`
-    : last ? `<button class="btn" data-act="pfFinish">Profil speichern</button>`
-    : `<button class="btn" data-act="pfNext">Weiter</button>`;
-  return `<div class="pf-in"><div class="pf-dots">${dots}</div>${main}
+  const cta = step === 'intro' ? `<button class="pf-cta" data-act="pfGo">Los geht’s</button>`
+    : last ? `<button class="pf-cta" data-act="pfFinish">Profil speichern</button>`
+    : `<button class="pf-cta" data-act="pfNext">Weiter</button>`;
+  const back = PF.i > 0 ? `<button class="pf-back" data-act="pfBack">Zurück</button>` : '';
+  return `<div class="pf-in">${pfProg()}${main}
     <div class="pf-err" role="alert">${esc(PF.err)}</div>
-    <div class="pf-nav">${back}${next}</div></div>`;
+    <div class="pf-nav">${cta}${back}</div></div>`;
 }
 
 function renderProfil() {
@@ -3291,10 +3302,16 @@ function renderProfil() {
   if (!el) { el = document.createElement('div'); el.id = 'profil'; document.body.appendChild(el); }
   el.hidden = !PF.on;
   el.innerHTML = PF.on ? profilHtml() : '';
+  const num = el.querySelector('.le-big');
+  if (num && PF.on && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const target = parseFloat(num.textContent) || 0, t0 = performance.now();
+    const tick = now => { const k = Math.min(1, (now - t0) / 900); num.textContent = Math.round(target * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
 }
 
-A.pfGo = () => { PF.i = 1; PF.err = ''; renderProfil(); };
-A.pfBack = () => { PF.i = Math.max(0, PF.i - 1); PF.err = ''; renderProfil(); };
+A.pfGo = () => { PF.i = 1; PF.dir = 1; PF.err = ''; renderProfil(); };
+A.pfBack = () => { PF.i = Math.max(0, PF.i - 1); PF.dir = -1; PF.err = ''; renderProfil(); };
 A.pfPick = d => {
   PF.d[d.f] = d.k; PF.err = ''; renderProfil();
 };
@@ -3323,7 +3340,7 @@ A.pfNext = () => {
   pfReadInput();
   const err = pfValidate();
   if (err) { PF.err = err; renderProfil(); return; }
-  PF.i = Math.min(PF_STEPS.length - 1, PF.i + 1); PF.err = '';
+  PF.i = Math.min(PF_STEPS.length - 1, PF.i + 1); PF.dir = 1; PF.err = '';
   if (PF_STEPS[PF.i] === 'done') pfApply();
   renderProfil();
 };
@@ -3348,12 +3365,16 @@ function showReset() {
   renderProfil();
 }
 function resetHtml() {
-  return `<div class="pf-in"><h1 class="pf-q">Neuer Start</h1>
-    <p class="pf-h">LIFE OS wird einmalig zurückgesetzt. Alle Buchungen, Konten, Ziele, Gewohnheiten, Tagebucheinträge, Berichte und Einstellungen werden von diesem Gerät gelöscht.</p>
-    <p class="pf-h">Danach beantwortest du die Profil-Fragen einmal neu. Dieser Schritt gilt für alle Nutzer gleich und lässt sich nicht rückgängig machen.</p>
-    <div class="pf-nav-col">
-      <button class="btn gray" data-act="resetBackup">Vorher Backup speichern</button>
-      <button class="btn" style="background:#d62d2d" data-act="resetDo">Alle Daten löschen &amp; neu starten</button>
+  const rows = [['db', 'Buchungen, Konten & Abos'], ['star', 'Ziele & Gewohnheiten'], ['doc', 'Tagebuch & Berichte'], ['shield', 'PIN-Sperre & Einstellungen']]
+    .map(([i, t]) => `<div class="pf-feat"><span class="pf-fi">${ic(i)}</span><div><b>${t}</b></div></div>`).join('');
+  return `<div class="pf-in">
+    <div class="pf-hero"><div class="pf-orb warn">${ic('trash')}</div></div>
+    <h1 class="pf-title sm">Neuer <span class="pf-grad">Start.</span></h1>
+    <p class="pf-sub">LIFE OS wird einmalig zurückgesetzt. Danach beantwortest du die Profil-Fragen neu. Der Schritt gilt für alle gleich und lässt sich nicht rückgängig machen.</p>
+    <div class="pf-feats">${rows}</div>
+    <div class="pf-nav">
+      <button class="pf-cta" style="background:linear-gradient(135deg,#ff453a,#ff9f0a);box-shadow:0 12px 32px rgba(255,69,58,.3)" data-act="resetDo">Alle Daten löschen &amp; neu starten</button>
+      <button class="pf-back" data-act="resetBackup">Vorher Backup speichern</button>
     </div></div>`;
 }
 A.resetBackup = () => A.backup();
