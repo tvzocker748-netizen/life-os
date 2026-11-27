@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.1';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2527,7 +2527,35 @@ A.editSaveRate = () => formSheet({
 });
 
 /* ---------------- Schnellerfassung ---------------- */
-let QE = { amt: '', cat: '', sh: null };
+let QE = { amt: '', cat: '', note: '', sh: null };
+
+const CAT_HINTS = [
+  [/rewe|lidl|aldi|edeka|penny|netto|kaufland|rossmann|\bdm\b/i, 'Lebensmittel'],
+  [/netflix|spotify|disney|youtube|icloud|prime video/i, 'Abonnements'],
+  [/shell|aral|esso|tankstelle|bvg|\bdb\b|bahn|uber|taxi|parkhaus/i, 'Mobilität'],
+  [/starbucks|café|cafe|restaurant|pizza|mcdonald|burger|lieferando|döner/i, 'Restaurant & Café'],
+  [/miete|nebenkosten|strom|gasversorger|wasserwerk/i, 'Wohnen'],
+  [/apotheke|arzt|zahnarzt|physio/i, 'Gesundheit'],
+  [/zalando|h&m|primark|zara/i, 'Kleidung'],
+  [/kino|konzert|eintritt|theater/i, 'Freizeit'],
+  [/hotel|flug|airbnb|ryanair|lufthansa|eurowings/i, 'Reisen']
+];
+/** Schlägt eine Kategorie vor: zuerst aus deiner eigenen Historie, sonst aus Stichwörtern. */
+function suggestCat(note) {
+  const n = (note || '').trim().toLowerCase();
+  if (!n) return null;
+  const hist = S.transactions.filter(t => t.type === 'expense' && (t.note || '').trim().toLowerCase() === n);
+  let c = null;
+  if (hist.length) {
+    const cnt = {};
+    hist.forEach(t => { cnt[t.category] = (cnt[t.category] || 0) + 1; });
+    c = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0][0];
+  } else {
+    const hit = CAT_HINTS.find(([rx]) => rx.test(n));
+    c = hit ? hit[1] : null;
+  }
+  return c && S.settings.expenseCats.includes(c) ? c : null;
+}
 
 function quickTemplates() {
   const map = {};
@@ -2554,6 +2582,7 @@ function quickEntryHtml() {
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'];
   return `
     <div class="qe-amount"><span>${esc(shown)}</span><span class="qe-cur">€</span></div>
+    <input id="qeNote" class="qe-note" type="text" maxlength="60" autocomplete="off" placeholder="Wofür? z. B. Rewe, Kaffee …" value="${esc(QE.note || '')}">
     ${tpl.length ? `<div class="list-h"><span>Vorlagen · einmal antippen</span></div>
       <div class="qe-chips">${tpl.map((x, i) => `<button class="qe-chip" data-act="qeTpl" data-i="${i}">${catIcon(x.category)} ${esc(x.note || x.category)} <b>${eur0(x.amount)}</b></button>`).join('')}</div>` : ''}
     <div class="list-h"><span>Kategorie</span></div>
@@ -2575,8 +2604,14 @@ async function saveQuick({ amount, category, note = '' }) {
 }
 
 A.quickEntry = () => {
-  QE = { amt: '', cat: quickCats()[0] || 'Sonstiges', sh: null };
+  QE = { amt: '', cat: quickCats()[0] || 'Sonstiges', note: '', sh: null };
   QE.sh = openSheet({ title: 'Schnell erfassen', body: quickEntryHtml(), tall: true });
+  QE.sh.el.addEventListener('input', e => {
+    if (e.target.id !== 'qeNote') return;
+    QE.note = e.target.value;
+    const c = suggestCat(QE.note);
+    if (c) { QE.cat = c; document.querySelectorAll('#sheets [data-act="qeCat"]').forEach(el => el.classList.toggle('on', el.dataset.c === c)); }
+  });
 };
 A.qeKey = d => {
   const k = d.k;
@@ -2591,7 +2626,7 @@ A.qeKey = d => {
   qeRefresh();
 };
 A.qeCat = d => { QE.cat = d.c; qeRefresh(); };
-A.qeSave = () => saveQuick({ amount: parseNum(QE.amt), category: QE.cat });
+A.qeSave = () => saveQuick({ amount: parseNum(QE.amt), category: QE.cat, note: (QE.note || '').trim() });
 A.qeTpl = d => {
   const x = quickTemplates()[+d.i];
   if (x) saveQuick({ amount: x.amount, category: x.category, note: x.note });
@@ -2904,13 +2939,15 @@ A.editBody = () => formSheet({
   fields: [
     { key: 'height', label: 'Körpergröße (cm)', type: 'text', placeholder: 'z. B. 178', cap: false },
     { key: 'weight', label: 'Gewicht heute (kg)', type: 'text', placeholder: 'z. B. 78,5', cap: false, hint: 'Ein Eintrag pro Tag. Ein neuer Wert am selben Tag ersetzt den alten.' },
-    { key: 'maxAge', label: 'Maximales Alter (Raster)', type: 'seg', numeric: true, options: [80, 85, 90, 95, 100].map(n => ({ v: n, l: String(n) })), hint: 'Bestimmt, wie viele Jahre das Raster zeigt.' }
+    { key: 'maxAge', label: 'Maximales Alter (Raster)', type: 'seg', numeric: true, options: [80, 85, 90, 95, 100].map(n => ({ v: n, l: String(n) })), hint: 'Bestimmt, wie viele Jahre das Raster zeigt.' },
+    { key: 'hideW', label: 'Gewicht in der Ansicht ausblenden', type: 'toggle', group: true, hint: 'Die Werte bleiben gespeichert, werden aber nicht angezeigt. Gewicht ist ein sensibler Wert: Trage nur ein, was dir guttut.' }
   ],
-  values: { height: S.settings.height ? String(S.settings.height) : '', weight: '', maxAge: lwMax() },
+  values: { height: S.settings.height ? String(S.settings.height) : '', weight: '', maxAge: lwMax(), hideW: !!S.settings.hideWeight },
   onSave: async v => {
     const h = parseNum(v.height);
     if (isFinite(h) && h > 50 && h < 260) S.settings.height = Math.round(h);
     S.settings.maxAge = +v.maxAge || LW_DEFAULT_MAX;
+    S.settings.hideWeight = !!v.hideW;
     const w = parseNum(v.weight);
     if (isFinite(w) && w > 20 && w < 400) {
       const rec = { id: 'w-' + today(), kind: 'weight', date: today(), kg: Math.round(w * 10) / 10 };
@@ -2981,18 +3018,18 @@ function weightSummary() {
 
 function lwSheetHtml() {
   const lw = lifeWeeks();
-  const ws = weightSummary();
+  const ws = S.settings.hideWeight ? null : weightSummary();
   const h = S.settings.height;
   let body = `<div class="lw-hero">
       <div><div class="lw-big">${n0(lw.lived)}</div><div class="small muted">Wochen gelebt</div></div>
       <div class="lw-side"><div class="lw-big sm">${n1(lw.lived / 52)}</div><div class="small muted">von ${lw.maxAge} Jahren · ${pct(lw.pct)}</div></div>
     </div>
     <div class="lu-wrap">${lebensuhrSvg(lw)}</div>
-    <div class="lw-legend"><span><i class="lw-dot on"></i>gelebt</span><span><i class="lw-dot now"></i>diese Woche</span><span><i class="lw-dot"></i>offen</span></div>`;
+    <div class="lw-legend"><span><i class="lw-dot grad"></i>gelebt · Farbe nach Alter</span><span><i class="lw-dot now"></i>diese Woche</span><span><i class="lw-dot"></i>offen</span></div>`;
   body += `<div class="list-h"><span>Körperdaten</span></div><div class="card">
       <div class="kv"><span>Größe</span><span class="num">${h ? h + ' cm' : '–'}</span></div>
-      <div class="kv"><span>Gewicht heute</span><span class="num">${ws && ws.last.date === today() ? n1(ws.last.kg) + ' kg' : '–'}</span></div>
-      <div class="kv"><span>Veränderung seit Beginn</span><span class="num">${ws && ws.ws.length > 1 ? (ws.delta > 0 ? '+' : ws.delta < 0 ? '−' : '') + n1(Math.abs(ws.delta)) + ' kg' : '–'}</span></div>
+      ${S.settings.hideWeight ? '<div class="kv"><span>Gewicht</span><span class="muted">ausgeblendet</span></div>' : `<div class="kv"><span>Gewicht heute</span><span class="num">${ws && ws.last.date === today() ? n1(ws.last.kg) + ' kg' : '–'}</span></div>
+      <div class="kv"><span>Veränderung seit Beginn</span><span class="num">${ws && ws.ws.length > 1 ? (ws.delta > 0 ? '+' : ws.delta < 0 ? '−' : '') + n1(Math.abs(ws.delta)) + ' kg' : '–'}</span></div>`}
     </div>`;
   if (ws && ws.ws.length > 1) {
     body += `<div class="card">${lineChart({ labels: ws.ws.map(w => fDay(w.date)), series: [{ name: 'Gewicht', values: ws.ws.map(w => w.kg), color: 'var(--series-1)' }], fmt: v => n1(v) + ' kg', h: 170 })}</div>`;
@@ -3039,12 +3076,12 @@ const ICON_PATHS = {
   sparkle: '<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>',
   house: '<path d="M4 11l8-7 8 7v9h-5v-6h-6v6H4z"/>',
   cart: '<path d="M3 4h2l2.5 11h10L20 7H6.5M9 19.5a.5.5 0 1 0 0 .1M17 19.5a.5.5 0 1 0 0 .1"/>',
-  fork: '<path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7M9 3v7M17 21V3c-2 1-3 4-3 8h3"/>',
-  car: '<path d="M5 16v-5l2-5h10l2 5v5M3 16h18v3H3z"/><path d="M7 18h.01M17 18h.01"/>',
+  fork: '<path d="M7 3v6a2.5 2.5 0 0 0 5 0V3M9.5 11.5V21M17 21V3c-2.2 1-3 3.2-3 6.5 0 2 1 3 3 3"/>',
+  car: '<path d="M4 15.5V12l2-5.2A2 2 0 0 1 7.9 5.5h8.2a2 2 0 0 1 1.9 1.3L20 12v3.5"/><path d="M3 15.5h18v2.5a1 1 0 0 1-1 1h-1.5a1 1 0 0 1-1-1V18H6.5v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7.5" cy="13.5" r=".9"/><circle cx="16.5" cy="13.5" r=".9"/>',
   pulse: '<path d="M3 12h4l2-5 4 10 2-5h6"/>',
   bag: '<path d="M6 8h12l-1 12H7zM9 8V6a3 3 0 0 1 6 0v2"/>',
   ticket: '<path d="M3 8h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4z"/>',
-  plane: '<path d="M3 12l18-8-7 17-3-7z"/>',
+  plane: '<path d="M2.5 12.5l19-8-6 16-3.5-6.5z"/><path d="M12 14.5l3.5-3.5"/>',
   book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 5v16"/>',
   cap: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/>',
   laptop: '<rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/>',
@@ -3280,6 +3317,7 @@ VIEWS.heute = () => {
     h += `<div class="section-h"><h2>Heute wichtig</h2><button class="link" data-act="go" data-tab="ziele" data-sub="tasks">Alle (${ot.length})</button></div>`;
     h += focus.length ? `<div class="list">${focus.map(taskRow).join('')}</div>` : `<div class="card small muted">Keine fälligen Aufgaben. Markiere Aufgaben mit ⭐️, um sie hier zu sehen.</div>`;
   }
+  h += '<details class="fold"><summary>Mehr anzeigen</summary>';
   // Demnächst
   const up = upcoming(10);
   if (up.length) {
@@ -3300,6 +3338,7 @@ VIEWS.heute = () => {
     h += `<div class="card tap" data-act="go" data-tab="journal" data-sub="areas"><div class="between"><span class="card-t">Lebensbalance</span><span class="chev">${ic('chevR', 'sm')}</span></div>
       <div class="between" style="margin-top:6px"><span class="big-num md">${n1(ls)}<span class="muted" style="font-size:15px"> / 10</span></span>${w ? `<span class="small muted" style="text-align:right">Größter Hebel:<br><b style="color:var(--text)">${w.icon} ${esc(w.name)}</b></span>` : ''}</div></div>`;
   }
+  h += '</details>';
   return page(greeting() + (name ? ', ' + name : ''), h, { sub: DF.wd.format(new Date()) });
 };
 function upcoming(days) {

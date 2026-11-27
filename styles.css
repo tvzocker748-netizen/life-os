@@ -678,3 +678,26 @@ body::before {
 .lw-card { background: radial-gradient(120% 120% at 100% 0%, rgba(191, 90, 242, .14), transparent 55%), var(--glass); }
 .section-h h2 { background: linear-gradient(100deg, var(--text) 35%, #5e5ce6 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .card { background: radial-gradient(110% 90% at 100% 0%, rgba(94, 92, 230, .07), transparent 60%), var(--glass); }
+
+/* ---------- Version 1.9: Feinschliff ---------- */
+.qe-note { width: 100%; margin: 6px 0 10px; border: .5px solid var(--glass-edge); background: var(--glass); border-radius: 14px; padding: 12px 14px; color: var(--text); font: inherit; outline: none; -webkit-appearance: none; }
+.qe-note::placeholder { color: var(--text3); }
+.qe-note:focus { box-shadow: 0 0 0 3px var(--accent-soft); }
+.lw-dot.grad { background: linear-gradient(90deg, hsl(205 85% 58%), hsl(320 85% 58%)); }
+details.fold { margin: 0; }
+details.fold summary { list-style: none; cursor: pointer; display: block; width: fit-content; margin: 2px auto 16px; padding: 9px 18px; border-radius: 999px; background: var(--glass); border: .5px solid var(--glass-edge); color: var(--accent); font-size: 15px; font-weight: 600; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+details.fold summary::-webkit-details-marker { display: none; }
+details.fold[open] > summary { margin-bottom: 14px; }
+.stat { background: var(--glass); -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); border: .5px solid var(--glass-edge); border-radius: 22px; box-shadow: var(--shadow); padding: 14px 16px; }
+.stat-v { font-size: 25px; font-weight: 760; letter-spacing: -.02em; }
+.bar { height: 10px; }
+.bar > span { background-image: linear-gradient(180deg, rgba(255, 255, 255, .38), rgba(255, 255, 255, 0) 65%); box-shadow: 0 2px 8px rgba(10, 132, 255, .22); }
+.bar > span.green { box-shadow: 0 2px 8px rgba(52, 199, 89, .25); }
+.bar > span.orange { box-shadow: 0 2px 8px rgba(255, 149, 0, .25); }
+.bar > span.red { box-shadow: 0 2px 8px rgba(255, 59, 48, .25); }
+
+/* ---------- Version 1.9.1: Korrekturen ---------- */
+.card.avail { background: radial-gradient(120% 120% at 0% 0%, rgba(255, 255, 255, .18), transparent 55%), linear-gradient(150deg, #0a84ff 0%, #5e5ce6 62%, #bf5af2 120%); border: 0; color: #fff; box-shadow: 0 16px 40px rgba(94, 92, 230, .35); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.card.avail.neg { background: linear-gradient(150deg, #ff453a 0%, #ff375f 100%); }
+.card.lw-card { background: radial-gradient(120% 120% at 100% 0%, rgba(191, 90, 242, .14), transparent 55%), var(--glass); }
+.stat-v { font-size: clamp(19px, 5.6vw, 25px); }

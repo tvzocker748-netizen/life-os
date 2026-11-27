@@ -1,7 +1,7 @@
 /* LIFE OS – Service Worker
    Speichert die App für die Offline-Nutzung. Bei jeder neuen Version
    die Versionsnummer unten erhöhen, damit Geräte das Update erhalten. */
-const VERSION = 'lifeos-v1.8.0';
+const VERSION = 'lifeos-v1.9.1';
 const ASSETS = [
   './',
   './index.html',
