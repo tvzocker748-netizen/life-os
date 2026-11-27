@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -250,6 +250,7 @@ async function loadAll() {
   S.settings.dismissed = S.settings.dismissed || {};
   S.pin = meta.find(m => m.id === 'pin') || null;
   S.reviews = meta.filter(m => m.kind === 'review');
+  S.weights = meta.filter(m => m.kind === 'weight');
   const timer = meta.find(m => m.id === 'timer');
   TIMER.state = timer || null;
   dataVer++;
@@ -2885,19 +2886,46 @@ function insightRecs(add) {
 }
 
 /* ---------------- Lebenswochen ---------------- */
-const LW_YEARS = 90;
-
-A.editBirth = () => formSheet({
-  title: 'Geburtsdatum',
-  fields: [{ key: 'birth', label: 'Geburtsdatum', type: 'date', required: true, hint: 'Nur auf diesem Gerät gespeichert. Dient ausschließlich dem Lebenswochen-Raster.' }],
-  values: { birth: S.settings.birth || '' },
-  onSave: async v => { S.settings.birth = v.birth; await saveSettings(); render(); refreshSheets(); toast('Gespeichert'); }
-});
+const LW_DEFAULT_MAX = 90;
+const lwMax = () => S.settings.maxAge || LW_DEFAULT_MAX;
 
 function lifeWeeks() {
   if (!S.settings.birth) return null;
-  const lived = Math.max(0, Math.floor(diffDays(S.settings.birth, today()) / 7));
-  return { lived, total: LW_YEARS * 52, pct: Math.min(100, lived / (LW_YEARS * 52) * 100) };
+  const maxAge = lwMax();
+  const total = maxAge * 52;
+  const lived = Math.min(total, Math.max(0, Math.floor(diffDays(S.settings.birth, today()) / 7)));
+  return { lived, total, maxAge, pct: lived / total * 100, year: lived % 52, yearNo: Math.floor(lived / 52) };
+}
+
+const lwHue = weekIdx => 205 + Math.min(1, weekIdx / (lwMax() * 52)) * 115;
+
+A.editBody = () => formSheet({
+  title: 'Körper & Raster',
+  fields: [
+    { key: 'height', label: 'Körpergröße (cm)', type: 'text', placeholder: 'z. B. 178', cap: false },
+    { key: 'weight', label: 'Gewicht heute (kg)', type: 'text', placeholder: 'z. B. 78,5', cap: false, hint: 'Ein Eintrag pro Tag. Ein neuer Wert am selben Tag ersetzt den alten.' },
+    { key: 'maxAge', label: 'Maximales Alter (Raster)', type: 'seg', numeric: true, options: [80, 85, 90, 95, 100].map(n => ({ v: n, l: String(n) })), hint: 'Bestimmt, wie viele Jahre das Raster zeigt.' }
+  ],
+  values: { height: S.settings.height ? String(S.settings.height) : '', weight: '', maxAge: lwMax() },
+  onSave: async v => {
+    const h = parseNum(v.height);
+    if (isFinite(h) && h > 50 && h < 260) S.settings.height = Math.round(h);
+    S.settings.maxAge = +v.maxAge || LW_DEFAULT_MAX;
+    const w = parseNum(v.weight);
+    if (isFinite(w) && w > 20 && w < 400) {
+      const rec = { id: 'w-' + today(), kind: 'weight', date: today(), kg: Math.round(w * 10) / 10 };
+      await DB.put('meta', rec);
+      S.weights = S.weights.filter(x => x.id !== rec.id).concat(rec);
+    }
+    await saveSettings();
+    render(); refreshSheets(); toast('Gespeichert');
+  }
+});
+
+function lwStripHtml(lw) {
+  const cells = [];
+  for (let i = 0; i < 52; i++) cells.push(`<i class="lw-s ${i < lw.year ? 'on' : i === lw.year ? 'now' : ''}" style="--h:${lwHue(lw.yearNo * 52 + i)}"></i>`);
+  return `<div class="lw-strip">${cells.join('')}</div>`;
 }
 
 function lwCardHtml() {
@@ -2908,9 +2936,16 @@ function lwCardHtml() {
     <div class="small muted" style="margin-top:2px">Gib dein Geburtsdatum ein, um dein persönliches Raster zu sehen.</div></div>`;
   return `<div class="card tap" data-act="lifeWeeks">
     <div class="between"><span class="card-t">Lebenswochen</span><span class="chev">${ic('chevR', 'sm')}</span></div>
-    <div class="between" style="margin-top:6px;align-items:flex-end"><span class="big-num md">${n0(lw.lived)}</span><span class="small muted">Wochen gelebt</span></div>
-    <div class="bar thin" style="margin-top:10px"><span style="width:${lw.pct.toFixed(2)}%"></span></div>
-    <div class="small muted" style="margin-top:6px">Raster bis ${LW_YEARS} Jahre · ${n0(lw.total - lw.lived)} Wochen darin noch offen</div></div>`;
+    <div class="between" style="margin-top:6px;align-items:flex-end"><span class="big-num md">${n0(lw.lived)}</span><span class="small muted">Wochen gelebt · Jahr ${lw.yearNo + 1}</span></div>
+    ${lwStripHtml(lw)}
+    <div class="small muted" style="margin-top:8px">Dieses Lebensjahr: ${lw.year} von 52 Wochen</div></div>`;
+}
+
+function weightSummary() {
+  const ws = S.weights.slice().sort(by(w => w.date));
+  if (!ws.length) return null;
+  const first = ws[0], last = ws[ws.length - 1];
+  return { ws, first, last, delta: last.kg - first.kg };
 }
 
 function lwSheetHtml() {
@@ -2918,19 +2953,35 @@ function lwSheetHtml() {
   const cells = [];
   for (let i = 0; i < lw.total; i++) {
     const cls = i === lw.lived ? 'lw now' : i < lw.lived ? 'lw on' : 'lw';
-    cells.push(`<i class="${cls}"></i>`);
+    cells.push(`<i class="${cls}" style="--h:${lwHue(i).toFixed(1)}"></i>`);
   }
-  return `<div class="lw-grid">${cells.join('')}</div>
-    <div class="card" style="margin-top:16px">
-      <div class="kv"><span>Gelebte Wochen</span><span class="num">${n0(lw.lived)}</span></div>
-      <div class="kv"><span>Jahre</span><span class="num">${n1(lw.lived / 52)}</span></div>
-      <div class="kv"><span>Anteil am Raster (${LW_YEARS} Jahre)</span><span class="num">${pct(lw.pct)}</span></div>
+  const ws = weightSummary();
+  const h = S.settings.height;
+  let body = `<div class="lw-hero">
+      <div><div class="lw-big">${n0(lw.lived)}</div><div class="small muted">Wochen gelebt</div></div>
+      <div class="lw-side"><div class="lw-big sm">${n1(lw.lived / 52)}</div><div class="small muted">von ${lw.maxAge} Jahren · ${pct(lw.pct)}</div></div>
     </div>
-    <p class="small muted">Jedes Kästchen ist eine Woche. Der leuchtende Punkt ist diese Woche. Die Anzahl der Wochen ist eine Erinnerung, dass jede Woche etwas wert ist.</p>
-    <button class="btn gray block" data-act="editBirth">Geburtsdatum ändern</button>`;
+    <div class="lw-grid">${cells.join('')}</div>
+    <div class="lw-legend"><span><i class="lw on"></i>gelebt</span><span><i class="lw now"></i>diese Woche</span><span><i class="lw"></i>offen</span></div>`;
+  body += `<div class="list-h"><span>Körperdaten</span></div><div class="card">
+      <div class="kv"><span>Größe</span><span class="num">${h ? h + ' cm' : '–'}</span></div>
+      <div class="kv"><span>Gewicht heute</span><span class="num">${ws && ws.last.date === today() ? n1(ws.last.kg) + ' kg' : '–'}</span></div>
+      <div class="kv"><span>Veränderung seit Beginn</span><span class="num">${ws && ws.ws.length > 1 ? (ws.delta > 0 ? '+' : ws.delta < 0 ? '−' : '') + n1(Math.abs(ws.delta)) + ' kg' : '–'}</span></div>
+    </div>`;
+  if (ws && ws.ws.length > 1) {
+    body += `<div class="card">${lineChart({ labels: ws.ws.map(w => fDay(w.date)), series: [{ name: 'Gewicht', values: ws.ws.map(w => w.kg), color: 'var(--series-1)' }], fmt: v => n1(v) + ' kg', h: 170 })}</div>`;
+  } else {
+    body += `<p class="small muted">Trage ab und zu dein Gewicht ein, dann erscheint hier dein Verlauf.</p>`;
+  }
+  body += `<p class="small muted">Jedes Kästchen ist eine Woche. Die Farbe wechselt mit dem Lebensalter. Die Daten bleiben nur auf diesem Gerät.</p>
+    <button class="btn block" data-act="editBody">Körperdaten & Raster bearbeiten</button>`;
+  return body;
 }
 
-A.lifeWeeks = () => { openSheet({ title: 'Lebenswochen', body: lwSheetHtml(), tall: true }); };
+A.lifeWeeks = () => {
+  const sh = openSheet({ title: 'Lebenswochen', body: lwSheetHtml(), tall: true });
+  sh.refresh = () => sh.setBody(lwSheetHtml());
+};
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).

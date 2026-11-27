@@ -641,3 +641,23 @@ body::before {
 .lw { display: block; aspect-ratio: 1; border-radius: 1.5px; background: var(--fill2); }
 .lw.on { background: var(--accent); opacity: .85; }
 .lw.now { background: var(--accent); box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 3px var(--accent); opacity: 1; }
+
+/* ---------- Version 1.7: Lebenswochen-Design ---------- */
+@keyframes lwPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.35); } }
+.lw-hero { display: flex; justify-content: space-between; align-items: flex-end; padding: 6px 4px 10px; }
+.lw-big { font-size: 46px; font-weight: 780; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; background: linear-gradient(120deg, #0a84ff, #bf5af2 70%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lw-big.sm { font-size: 30px; text-align: right; }
+.lw-side { text-align: right; }
+.lw-grid { display: grid; grid-template-columns: repeat(52, 1fr); gap: 2px; padding: 4px 0 6px; }
+.lw { display: block; aspect-ratio: 1; border-radius: 2px; background: transparent; box-shadow: inset 0 0 0 .7px var(--sep); }
+.lw.on { background: hsl(var(--h) 85% 58%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45); }
+.lw.now { background: hsl(var(--h) 95% 62%); box-shadow: 0 0 0 1.5px var(--bg), 0 0 10px hsl(var(--h) 95% 60% / .9); animation: lwPulse 2.2s ease-in-out infinite; z-index: 1; position: relative; }
+.lw-legend { display: flex; gap: 14px; justify-content: center; font-size: 12px; color: var(--text2); margin: 2px 0 16px; }
+.lw-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.lw-legend .lw { width: 9px; height: 9px; aspect-ratio: auto; }
+.lw-legend .lw.on { background: hsl(205 85% 58%); }
+.lw-legend .lw.now { background: hsl(260 95% 62%); }
+.lw-strip { display: grid; grid-template-columns: repeat(52, 1fr); gap: 2px; margin-top: 12px; }
+.lw-s { display: block; aspect-ratio: 1; border-radius: 1.5px; box-shadow: inset 0 0 0 .6px var(--sep); }
+.lw-s.on { background: hsl(var(--h) 85% 58%); }
+.lw-s.now { background: hsl(var(--h) 95% 62%); box-shadow: 0 0 6px hsl(var(--h) 95% 60% / .9); }
