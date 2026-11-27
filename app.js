@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.13.1';
+const APP_VERSION = '1.13.2';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -3534,6 +3534,20 @@ function milestonesHtml() {
   }).join('');
   return `<div class="list-h"><span>Meilensteine</span></div><div class="card">${rows}</div>`;
 }
+
+/* ---------------- Kurzbefehl-Einstieg: #quick?amount=12,50&note=Kaffee ---------------- */
+function openQuickFromLink() {
+  const h = location.hash || '';
+  if (!h.startsWith('#quick')) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  if (!S.settings.onboarded || resetNeeded() || pfNeeds() || PF.on) return;
+  const q = new URLSearchParams(h.split('?')[1] || '');
+  A.quickEntry();
+  const n = parseNum(q.get('amount') || '');
+  if (isFinite(n) && n > 0) QE.amt = String(Math.round(n * 100) / 100);
+  if (q.get('note')) QE.note = q.get('note').slice(0, 60);
+  if (QE.sh && QE.sh.setBody) QE.sh.setBody(quickEntryHtml());
+}
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).
@@ -4379,5 +4393,6 @@ async function init() {
   else if (resetNeeded()) showReset();
   else startProfil();
   registerSW();
+  setTimeout(openQuickFromLink, 900);
 }
 init();
