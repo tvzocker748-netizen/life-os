@@ -875,3 +875,12 @@ html, body, #profil, #app, .sheet, .sheet-body, .scroll { scrollbar-width: none;
 @keyframes treeGrow { from { transform: scale(.9); opacity: .3; } to { transform: scale(1); opacity: 1; } }
 @keyframes treeSway { 0%, 100% { transform: rotate(-.6deg); } 50% { transform: rotate(.6deg); } }
 @media (prefers-reduced-motion: reduce) { .tree-svg, .tree-sway { animation: none !important; } }
+
+/* ---------- Version 1.15: Dein Wald ---------- */
+.wald-card { cursor: pointer; }
+.wald-row { display: flex; gap: 6px; overflow-x: auto; align-items: flex-end; margin: 10px 0 8px; }
+.wald-t { width: 52px; height: 56px; flex: none; }
+.wald-t .tree-svg { animation: none; }
+.wald-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; margin-top: 8px; }
+.wald-grid .wald-t { width: 100%; height: auto; aspect-ratio: 240 / 250; }
+.wald-cell .small { margin-top: 2px; }

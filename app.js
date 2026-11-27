@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.14.0';
+const APP_VERSION = '1.15.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -3662,6 +3662,61 @@ function treeDetailHtml() {
     <p class="small muted">Es gibt kein Minus. Pausierst du eine Weile, wächst er einfach nicht weiter.</p>`;
 }
 A.treeDetail = () => openSheet({ title: 'Dein Baum', body: treeDetailHtml(), tall: false });
+
+/* ---------------- Dein Wald: ein Baum pro Monat ---------------- */
+/** Gleiche Gewichtung wie Dein Baum. Fehlt ein Bereich, zählen die anderen. */
+function blendScore(list) {
+  const parts = list.filter(p => p[1] != null);
+  if (!parts.length) return null;
+  const w = sum(parts, p => p[2]);
+  const score = Math.round(parts.reduce((a, p) => a + p[1] * p[2], 0) / w);
+  return { score, parts: parts.map(p => ({ label: p[0], v: Math.round(p[1]) })) };
+}
+function monthScore(mk) {
+  const y = +mk.slice(0, 4), m = +mk.slice(5, 7), dim = new Date(y, m, 0).getDate();
+  const from = `${mk}-01`, to = mk === curMonth() ? today() : `${mk}-${String(dim).padStart(2, '0')}`;
+  const cm = monthStats(mk);
+  const fin = cm.income > 0 ? clamp((cm.income - cm.expense) / cm.income * 500, 0, 100) : null;
+  const hr = habitsRate(from, to);
+  const days = new Set(S.journal.filter(j => j.date >= from && j.date <= to).map(j => j.date)).size;
+  return blendScore([['Finanzen', fin, .4], ['Gewohnheiten', hr == null ? null : hr * 100, .35], ['Tagebuch', clamp(days / 15 * 100, 0, 100), .25]]);
+}
+/** Monate vom ersten Eintrag bis heute, höchstens die letzten 12. */
+function waldMonths() {
+  const cur = curMonth();
+  const first = [...S.transactions.map(x => x.date), ...S.journal.map(x => x.date)].filter(Boolean).sort()[0];
+  const start = first ? first.slice(0, 7) : cur;
+  const out = [];
+  let y = +cur.slice(0, 4), m = +cur.slice(5, 7);
+  for (let i = 0; i < 12; i++) {
+    const k = `${y}-${String(m).padStart(2, '0')}`;
+    if (k < start) break;
+    out.unshift(k);
+    if (--m === 0) { m = 12; y--; }
+  }
+  return out.length ? out : [cur];
+}
+function waldData() {
+  return waldMonths().map(k => ({ k, r: monthScore(k), label: new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, 1).toLocaleDateString('de-DE', { month: 'short' }) }));
+}
+function waldCardHtml() {
+  const data = waldData(), planted = data.filter(d => d.r).length;
+  const trees = data.map(d => `<div class="wald-t">${treeSvg(d.r ? d.r.score : 0, today())}</div>`).join('');
+  return `<div class="card tap wald-card" data-act="waldDetail">
+    <div class="between"><span class="card-t">Dein Wald</span><span class="chev">${ic('chevR', 'sm')}</span></div>
+    <div class="wald-row">${trees}</div>
+    <div class="small muted">${planted} von ${data.length} Monaten bepflanzt</div></div>`;
+}
+function waldDetailHtml() {
+  const data = waldData();
+  const done = S.goals.filter(g => goalStatus(g).key === 'done').length;
+  const cells = data.map(d => `<div class="wald-cell"><div class="wald-t">${treeSvg(d.r ? d.r.score : 0, today())}</div>
+    <div class="small muted center">${d.label}${d.r ? ' · ' + d.r.score : ''}</div></div>`).join('');
+  return `<div class="wald-grid">${cells}</div>
+    <div class="card center"><div class="card-t">Früchte</div><div class="big num">${done}</div><div class="small muted">Ziele erreicht</div></div>
+    <p class="small muted">Jeder Monat wird ein Baum. Die Zahl unter dem Baum ist sein Punktestand von 100. Ein Monat ohne Einträge bleibt ein Samen, das ist kein Minus.</p>`;
+}
+A.waldDetail = () => openSheet({ title: 'Dein Wald', body: waldDetailHtml(), tall: false });
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).
@@ -3901,7 +3956,7 @@ VIEWS.heute = () => {
     <button data-act="addTx" data-type="income"><span class="q-ico" style="background:var(--green-ui)">${ic('plus')}</span>Einnahme</button>
     <button data-act="addJournal"><span class="q-ico" style="background:var(--indigo)">${ic('edit')}</span>Tagebuch</button>
     <button data-act="addTask"><span class="q-ico" style="background:var(--orange-ui)">${ic('check')}</span>Aufgabe</button></div>`;
-  h += backupBannerHtml() + treeCardHtml() + ringsHtml() + availCardHtml() + reviewCardHtml();
+  h += backupBannerHtml() + treeCardHtml() + waldCardHtml() + availCardHtml() + reviewCardHtml();
   if (!S.transactions.length && !S.journal.length && !S.habits.length) {
     h += `<div class="card"><div class="card-t">Starte hier</div><p class="small muted" style="margin:6px 0 12px">Eine Ausgabe oder ein Tagebucheintrag reicht für den Anfang.</p>
       <div class="rings-btns"><button class="btn tinted small" data-act="quickEntry">Ausgabe erfassen</button><button class="btn tinted small" data-act="addJournal">Tagebuch</button></div></div>`;
@@ -3939,7 +3994,7 @@ VIEWS.heute = () => {
     h += focus.length ? `<div class="list">${focus.map(taskRow).join('')}</div>` : `<div class="card small muted">Keine fälligen Aufgaben.</div>`;
   }
   h += '<details class="fold"><summary>Mehr anzeigen</summary>';
-  h += onThisDayHtml() + lwCardHtml();
+  h += ringsHtml() + onThisDayHtml() + lwCardHtml();
   // Demnächst
   const up = upcoming(10);
   if (up.length) {
