@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.9.1';
+const APP_VERSION = '1.10.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2922,7 +2922,7 @@ function insightRecs(add) {
 
 /* ---------------- Lebenswochen ---------------- */
 const LW_DEFAULT_MAX = 90;
-const lwMax = () => S.settings.maxAge || LW_DEFAULT_MAX;
+const lwMax = () => (S.settings.maxAge > 0 ? S.settings.maxAge : autoMaxAge());
 
 function lifeWeeks() {
   if (!S.settings.birth) return null;
@@ -2933,31 +2933,6 @@ function lifeWeeks() {
 }
 
 const lwHue = weekIdx => 205 + Math.min(1, weekIdx / (lwMax() * 52)) * 115;
-
-A.editBody = () => formSheet({
-  title: 'Körper & Raster',
-  fields: [
-    { key: 'height', label: 'Körpergröße (cm)', type: 'text', placeholder: 'z. B. 178', cap: false },
-    { key: 'weight', label: 'Gewicht heute (kg)', type: 'text', placeholder: 'z. B. 78,5', cap: false, hint: 'Ein Eintrag pro Tag. Ein neuer Wert am selben Tag ersetzt den alten.' },
-    { key: 'maxAge', label: 'Maximales Alter (Raster)', type: 'seg', numeric: true, options: [80, 85, 90, 95, 100].map(n => ({ v: n, l: String(n) })), hint: 'Bestimmt, wie viele Jahre das Raster zeigt.' },
-    { key: 'hideW', label: 'Gewicht in der Ansicht ausblenden', type: 'toggle', group: true, hint: 'Die Werte bleiben gespeichert, werden aber nicht angezeigt. Gewicht ist ein sensibler Wert: Trage nur ein, was dir guttut.' }
-  ],
-  values: { height: S.settings.height ? String(S.settings.height) : '', weight: '', maxAge: lwMax(), hideW: !!S.settings.hideWeight },
-  onSave: async v => {
-    const h = parseNum(v.height);
-    if (isFinite(h) && h > 50 && h < 260) S.settings.height = Math.round(h);
-    S.settings.maxAge = +v.maxAge || LW_DEFAULT_MAX;
-    S.settings.hideWeight = !!v.hideW;
-    const w = parseNum(v.weight);
-    if (isFinite(w) && w > 20 && w < 400) {
-      const rec = { id: 'w-' + today(), kind: 'weight', date: today(), kg: Math.round(w * 10) / 10 };
-      await DB.put('meta', rec);
-      S.weights = S.weights.filter(x => x.id !== rec.id).concat(rec);
-    }
-    await saveSettings();
-    render(); refreshSheets(); toast('Gespeichert');
-  }
-});
 
 /* Lebensuhr: jedes Lebensjahr ist ein Ring, die Wochen laufen als Bogen darauf */
 function lebensuhrSvg(lw) {
@@ -3006,7 +2981,7 @@ function lwCardHtml() {
       <div><div class="lw-big">${n0(lw.lived)}</div><div class="small muted">Wochen gelebt</div>
         <div class="small muted" style="margin-top:10px">Lebensjahr ${lw.yearNo + 1} · noch ${52 - lw.year} Wochen</div></div>
       ${miniRingSvg(lw)}
-    </div></div>`;
+    </div><div class="lw-say">${esc(lebensSatz())}</div></div>`;
 }
 
 function weightSummary() {
@@ -3020,12 +2995,13 @@ function lwSheetHtml() {
   const lw = lifeWeeks();
   const ws = S.settings.hideWeight ? null : weightSummary();
   const h = S.settings.height;
-  let body = `<div class="lw-hero">
+  let body = `${lebensSatzCard()}<div class="lw-hero">
       <div><div class="lw-big">${n0(lw.lived)}</div><div class="small muted">Wochen gelebt</div></div>
       <div class="lw-side"><div class="lw-big sm">${n1(lw.lived / 52)}</div><div class="small muted">von ${lw.maxAge} Jahren · ${pct(lw.pct)}</div></div>
     </div>
     <div class="lu-wrap">${lebensuhrSvg(lw)}</div>
     <div class="lw-legend"><span><i class="lw-dot grad"></i>gelebt · Farbe nach Alter</span><span><i class="lw-dot now"></i>diese Woche</span><span><i class="lw-dot"></i>offen</span></div>`;
+  body += `<div class="list-h"><span>Lebensphasen</span></div>${phasesHtml()}`;
   body += `<div class="list-h"><span>Körperdaten</span></div><div class="card">
       <div class="kv"><span>Größe</span><span class="num">${h ? h + ' cm' : '–'}</span></div>
       ${S.settings.hideWeight ? '<div class="kv"><span>Gewicht</span><span class="muted">ausgeblendet</span></div>' : `<div class="kv"><span>Gewicht heute</span><span class="num">${ws && ws.last.date === today() ? n1(ws.last.kg) + ' kg' : '–'}</span></div>
@@ -3045,6 +3021,117 @@ A.lifeWeeks = () => {
   const sh = openSheet({ title: 'Lebenswochen', body: lwSheetHtml(), tall: true });
   sh.refresh = () => sh.setBody(lwSheetHtml());
 };
+
+/* ---------------- Lebensuhr wird schlau ---------------- */
+/** Richtwert für die Lebenserwartung (grobe Größenordnung, kein Prognosewert). */
+function lifeExpectancyEst() {
+  const b = S.settings.birth, sex = S.settings.sex;
+  if (!b || !sex) return null;
+  const base = sex === 'm' ? 78.5 : 83.3;
+  return base + (+b.slice(0, 4) - 2000) * 0.1;
+}
+/** Automatisches Raster-Ende: Richtwert + 5 Jahre, auf 5 gerundet, zwischen 80 und 100. */
+function autoMaxAge() {
+  const e = lifeExpectancyEst();
+  if (!e) return LW_DEFAULT_MAX;
+  return clamp(Math.round((e + 5) / 5) * 5, 80, 100);
+}
+
+/** Monatsstimmung aus dem Tagebuch, geglättet über 3 Monate. */
+function moodByMonth() {
+  const m = {};
+  S.journal.forEach(j => { if (j.mood) { const k = j.date.slice(0, 7); (m[k] = m[k] || []).push(+j.mood); } });
+  return Object.entries(m).map(([k, v]) => ({ k, v: avg(v) })).sort(by(x => x.k));
+}
+
+/** Erkennt Lebensphasen: Zeiträume mit ähnlicher Stimmung, getrennt bei deutlichem Wechsel. */
+function lifePhases() {
+  const ms = moodByMonth();
+  if (ms.length < 4) return null;
+  const sm = ms.map((x, i) => ({ k: x.k, v: avg(ms.slice(Math.max(0, i - 1), i + 2).map(y => y.v)) }));
+  const groups = [];
+  let cur = { start: sm[0].k, end: sm[0].k, vals: [sm[0].v] };
+  for (let i = 1; i < sm.length; i++) {
+    const base = avg(cur.vals);
+    if (Math.abs(sm[i].v - base) >= 0.7 && cur.vals.length >= 2) {
+      groups.push(cur);
+      cur = { start: sm[i].k, end: sm[i].k, vals: [sm[i].v] };
+    } else { cur.end = sm[i].k; cur.vals.push(sm[i].v); }
+  }
+  groups.push(cur);
+  return groups.map(g => {
+    const mood = avg(g.vals);
+    const months = diffDays(g.start + '-01', g.end + '-01') / 30.4 + 1;
+    const label = mood >= 3.8 ? 'Stimmungshoch' : mood >= 3 ? 'Stabile Phase' : 'Ruhigere Phase';
+    return { start: g.start, end: g.end, mood, months: Math.max(1, Math.round(months)), label, hue: 25 + (clamp(mood, 1, 5) - 1) / 4 * 125 };
+  });
+}
+
+function phasesHtml() {
+  const ph = lifePhases();
+  if (!ph) return `<div class="card small muted">Sobald du ein paar Monate ins Tagebuch schreibst, erkennt die Uhr deine Lebensphasen.</div>`;
+  const total = sum(ph, p => p.months);
+  const bar = ph.map(p => `<i style="flex:${p.months};background:hsl(${p.hue.toFixed(0)} 80% 58%)"></i>`).join('');
+  const list = ph.slice().reverse().map(p => `<div class="kv"><span><b class="ph-dot" style="background:hsl(${p.hue.toFixed(0)} 80% 58%)"></b> ${esc(p.label)}</span><span class="num small">${esc(fMon(p.start))} – ${esc(fMon(p.end))} · ${p.months} Mon.</span></div>`).join('');
+  return `<div class="ph-bar" aria-hidden="true">${bar}</div><div class="card">${list}</div>
+    <p class="small muted">Die Phasen entstehen aus deiner Tagebuch-Stimmung. Sie sind eine Orientierung, keine Bewertung. ${total} Monate erfasst.</p>`;
+}
+
+/** Ein ehrlicher Satz pro Tag, aus den größten Abweichungen deiner echten Daten. */
+function lebensSatz() {
+  const t = today();
+  const cands = [];
+  const hw = habitsRate(addDays(t, -6), t), hp = habitsRate(addDays(t, -34), addDays(t, -7));
+  if (hw != null && hp != null && Math.abs(hw - hp) >= 0.1) {
+    cands.push({ score: Math.abs(hw - hp), text: hw > hp ? `Deine Gewohnheiten liegen diese Woche bei ${pct(hw * 100)} und damit über deinem Schnitt.` : `Deine Gewohnheiten liegen diese Woche bei ${pct(hw * 100)}. Kleine Schritte zählen trotzdem.` });
+  }
+  const mw = S.journal.filter(j => j.mood && j.date >= addDays(t, -6)).map(j => +j.mood);
+  const mp = S.journal.filter(j => j.mood && j.date < addDays(t, -6) && j.date >= addDays(t, -34)).map(j => +j.mood);
+  if (mw.length && mp.length && Math.abs(avg(mw) - avg(mp)) >= 0.4) {
+    const up = avg(mw) > avg(mp);
+    cands.push({ score: Math.abs(avg(mw) - avg(mp)) / 2, text: up ? 'Deine Stimmung war diese Woche spürbar besser als in den Wochen davor.' : 'Deine Stimmung war diese Woche ruhiger als in den Wochen davor. Das ist eine Information, kein Urteil.' });
+  }
+  const wk = rangeStats(addDays(t, -6), t).expense, wa = avgStats(3).expense * 12 / 52;
+  if (wa > 0 && wk > 0 && Math.abs(wk / wa - 1) >= 0.25) {
+    cands.push({ score: Math.abs(wk / wa - 1) / 2, text: wk > wa ? `Du hast diese Woche ${eur0(wk - wa)} mehr ausgegeben als im Schnitt.` : `Du hast diese Woche ${eur0(wa - wk)} weniger ausgegeben als im Schnitt.` });
+  }
+  const days = new Set(S.journal.map(j => j.date));
+  let streak = 0; for (let d = t; days.has(d) && streak < 400; d = addDays(d, -1)) streak++;
+  if (streak >= 7) cands.push({ score: .3, text: `Du hast ${streak} Tage in Folge ins Tagebuch geschrieben.` });
+  cands.sort(by(c => c.score, -1));
+  return cands.length ? cands[0].text : 'Dein Raster wächst jede Woche um ein Kästchen. Gestalte die nächste bewusst.';
+}
+
+function lebensSatzCard() {
+  return `<div class="lw-say"><span class="lw-say-l">Heute</span>${esc(lebensSatz())}</div>`;
+}
+
+A.editBody = () => formSheet({
+  title: 'Körper & Raster',
+  fields: [
+    { key: 'sex', label: 'Für den Richtwert', type: 'seg', options: [{ v: 'f', l: 'Frau' }, { v: 'm', l: 'Mann' }, { v: 'x', l: 'Keine Angabe' }], hint: 'Nur für die grobe Lebenserwartung. Wird nur auf diesem Gerät gespeichert.' },
+    { key: 'maxAge', label: 'Raster-Ende (Alter)', type: 'seg', numeric: true, options: [{ v: 0, l: 'Auto' }, { v: 80, l: '80' }, { v: 90, l: '90' }, { v: 100, l: '100' }], hint: lifeExpectancyEst() ? `Auto ergibt ${autoMaxAge()} Jahre (Richtwert ca. ${Math.round(lifeExpectancyEst())} Jahre).` : 'Auto nutzt einen Richtwert, sobald du Geschlecht und Geburtsdatum angibst.' },
+    { key: 'height', label: 'Körpergröße (cm)', type: 'text', placeholder: 'z. B. 178', cap: false },
+    { key: 'weight', label: 'Gewicht heute (kg)', type: 'text', placeholder: 'z. B. 78,5', cap: false, hint: 'Ein Eintrag pro Tag. Ein neuer Wert am selben Tag ersetzt den alten.' },
+    { key: 'hideW', label: 'Gewicht in der Ansicht ausblenden', type: 'toggle', group: true, hint: 'Die Werte bleiben gespeichert, werden aber nicht angezeigt. Gewicht ist ein sensibler Wert: Trage nur ein, was dir guttut.' }
+  ],
+  values: { sex: S.settings.sex || 'x', maxAge: S.settings.maxAge || 0, height: S.settings.height ? String(S.settings.height) : '', weight: '', hideW: !!S.settings.hideWeight },
+  onSave: async v => {
+    const h = parseNum(v.height);
+    if (isFinite(h) && h > 50 && h < 260) S.settings.height = Math.round(h);
+    S.settings.sex = v.sex === 'x' ? null : v.sex;
+    S.settings.maxAge = +v.maxAge || 0;
+    S.settings.hideWeight = !!v.hideW;
+    const w = parseNum(v.weight);
+    if (isFinite(w) && w > 20 && w < 400) {
+      const rec = { id: 'w-' + today(), kind: 'weight', date: today(), kg: Math.round(w * 10) / 10 };
+      await DB.put('meta', rec);
+      S.weights = S.weights.filter(x => x.id !== rec.id).concat(rec);
+    }
+    await saveSettings();
+    render(); refreshSheets(); toast('Gespeichert');
+  }
+});
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).
