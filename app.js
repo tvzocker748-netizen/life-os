@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2840,7 +2840,7 @@ A.calExport = async () => {
 
 /* ---------------- Heute: Einbindung ---------------- */
 function featuresHomeHtml() {
-  return availCardHtml() + reviewCardHtml();
+  return availCardHtml() + reviewCardHtml() + lwCardHtml();
 }
 
 /* ---------------- Lokale Muster-Erkenntnisse (ohne KI, ohne Internet) ---------------- */
@@ -2883,6 +2883,54 @@ function insightRecs(add) {
     add({ key: `ins-small-${cm}`, prio: 2, icon: '🪙', title: 'Viele kleine Käufe', text: `${small.length} Käufe unter 10 € – zusammen ${eur0(smallSum)} in diesem Monat. Kleinbeträge summieren sich unbemerkt.`, act: 'go', tab: 'finanzen', sub: 'tx', actLabel: 'Buchungen ansehen' });
   }
 }
+
+/* ---------------- Lebenswochen ---------------- */
+const LW_YEARS = 90;
+
+A.editBirth = () => formSheet({
+  title: 'Geburtsdatum',
+  fields: [{ key: 'birth', label: 'Geburtsdatum', type: 'date', required: true, hint: 'Nur auf diesem Gerät gespeichert. Dient ausschließlich dem Lebenswochen-Raster.' }],
+  values: { birth: S.settings.birth || '' },
+  onSave: async v => { S.settings.birth = v.birth; await saveSettings(); render(); refreshSheets(); toast('Gespeichert'); }
+});
+
+function lifeWeeks() {
+  if (!S.settings.birth) return null;
+  const lived = Math.max(0, Math.floor(diffDays(S.settings.birth, today()) / 7));
+  return { lived, total: LW_YEARS * 52, pct: Math.min(100, lived / (LW_YEARS * 52) * 100) };
+}
+
+function lwCardHtml() {
+  const lw = lifeWeeks();
+  if (!lw) return `<div class="card tap" data-act="editBirth">
+    <div class="between"><span class="card-t">Lebenswochen</span><span class="chev">${ic('chevR', 'sm')}</span></div>
+    <div style="font-size:17px;font-weight:600;margin-top:4px">Sieh dein Leben in Wochen</div>
+    <div class="small muted" style="margin-top:2px">Gib dein Geburtsdatum ein, um dein persönliches Raster zu sehen.</div></div>`;
+  return `<div class="card tap" data-act="lifeWeeks">
+    <div class="between"><span class="card-t">Lebenswochen</span><span class="chev">${ic('chevR', 'sm')}</span></div>
+    <div class="between" style="margin-top:6px;align-items:flex-end"><span class="big-num md">${n0(lw.lived)}</span><span class="small muted">Wochen gelebt</span></div>
+    <div class="bar thin" style="margin-top:10px"><span style="width:${lw.pct.toFixed(2)}%"></span></div>
+    <div class="small muted" style="margin-top:6px">Raster bis ${LW_YEARS} Jahre · ${n0(lw.total - lw.lived)} Wochen darin noch offen</div></div>`;
+}
+
+function lwSheetHtml() {
+  const lw = lifeWeeks();
+  const cells = [];
+  for (let i = 0; i < lw.total; i++) {
+    const cls = i === lw.lived ? 'lw now' : i < lw.lived ? 'lw on' : 'lw';
+    cells.push(`<i class="${cls}"></i>`);
+  }
+  return `<div class="lw-grid">${cells.join('')}</div>
+    <div class="card" style="margin-top:16px">
+      <div class="kv"><span>Gelebte Wochen</span><span class="num">${n0(lw.lived)}</span></div>
+      <div class="kv"><span>Jahre</span><span class="num">${n1(lw.lived / 52)}</span></div>
+      <div class="kv"><span>Anteil am Raster (${LW_YEARS} Jahre)</span><span class="num">${pct(lw.pct)}</span></div>
+    </div>
+    <p class="small muted">Jedes Kästchen ist eine Woche. Der leuchtende Punkt ist diese Woche. Die Anzahl der Wochen ist eine Erinnerung, dass jede Woche etwas wert ist.</p>
+    <button class="btn gray block" data-act="editBirth">Geburtsdatum ändern</button>`;
+}
+
+A.lifeWeeks = () => { openSheet({ title: 'Lebenswochen', body: lwSheetHtml(), tall: true }); };
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).

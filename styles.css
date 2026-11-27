@@ -635,3 +635,9 @@ body::before {
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) #tabbar { background: rgba(20, 20, 22, .6); } }
 :root[data-theme="dark"] #tabbar { background: rgba(20, 20, 22, .6); }
 .section-h { padding-top: 14px; }
+
+/* ---------- Version 1.6: Lebenswochen ---------- */
+.lw-grid { display: grid; grid-template-columns: repeat(52, 1fr); gap: 2px; padding: 6px 0 2px; }
+.lw { display: block; aspect-ratio: 1; border-radius: 1.5px; background: var(--fill2); }
+.lw.on { background: var(--accent); opacity: .85; }
+.lw.now { background: var(--accent); box-shadow: 0 0 0 1.5px var(--bg), 0 0 0 3px var(--accent); opacity: 1; }
