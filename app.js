@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.13.6';
+const APP_VERSION = '1.13.7';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -3086,12 +3086,12 @@ function leBlock() {
   if (!p) return `<div class="le-card"><div class="le-l">Prognose Lebenserwartung</div><div class="small muted">Trage dein Geburtsdatum ein, dann erscheint hier deine Prognose.</div></div>`;
   const rem = Math.max(0, p.total - p.age);
   const rows = p.parts.map(x => `<div class="kv"><span>${esc(x.l)}</span><span class="num">${x.v > 0 ? '+' : '−'}${n1(Math.abs(x.v))} Jahre</span></div>`).join('');
-  const note = S.settings.sex ? '' : ' Ohne Angabe zum Geschlecht wird der Mittelwert beider Geschlechter genommen.';
+  const note = S.settings.sex ? '' : ' Ohne Angabe: Mittelwert beider Geschlechter.';
   return `<div class="le-card"><div class="le-l">Prognose Lebenserwartung</div>
     <div class="le-row"><div><span class="le-big">${Math.round(p.total)}</span> <span class="muted">Jahre</span></div><div class="le-side">noch ca. ${Math.round(rem)} Jahre</div></div>
-    <div class="small muted">Startwert ${Math.round(p.base)} Jahre (Sterbetafel 2025 des Statistischen Bundesamts, nach Alter und Geschlecht).${note}</div>
-    ${rows ? `<div class="le-parts">${rows}</div>` : '<div class="small muted">Keine Faktoren angegeben. Angaben zu Rauchen, Gewicht und Bewegung trägst du unter „Körper & Raster“ ein.</div>'}
-    <div class="small muted">Grobe Orientierung aus Bevölkerungsstudien, keine persönliche Vorhersage.</div></div>`;
+    <div class="small muted">Startwert ${Math.round(p.base)} Jahre laut Sterbetafel 2025.${note}</div>
+    ${rows ? `<div class="le-parts">${rows}</div>` : '<div class="small muted">Faktoren kannst du unter „Körper &amp; Raster“ ergänzen.</div>'}
+    <div class="small muted">Grobe Orientierung, keine Vorhersage.</div></div>`;
 }
 /** Automatisches Raster-Ende: Prognose + 5 Jahre, auf 5 gerundet, zwischen 80 und 100. */
 function autoMaxAge() {
