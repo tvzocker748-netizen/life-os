@@ -854,3 +854,24 @@ html, body, #profil, #app, .sheet, .sheet-body, .scroll { scrollbar-width: none;
 #splash span { font-size: 22px; font-weight: 700; letter-spacing: .08em; color: var(--text); }
 #splash.out { opacity: 0; transform: scale(1.04); pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { #splash img { animation: none; } }
+
+/* ---------- Version 1.14: Dein Baum ---------- */
+.tree-card { cursor: pointer; }
+.tree-row { display: flex; align-items: center; gap: 16px; }
+.tree-wrap { width: 132px; height: 136px; flex: none; }
+.tree-svg { width: 100%; height: 100%; overflow: visible; animation: treeGrow .9s cubic-bezier(.2,.8,.2,1) both; }
+.tree-g line { stroke: #8a6a4f; stroke-linecap: round; }
+.tree-ground { fill: rgba(128,128,140,.18); }
+.lf { transition: r .8s ease, opacity .8s ease; }
+.tree-sway { transform-origin: 120px 234px; animation: treeSway 7s ease-in-out infinite; }
+.tree-txt { min-width: 0; }
+.tree-stage { font-size: 22px; font-weight: 750; letter-spacing: -.02em; }
+.tree-stage.center, .center { text-align: center; }
+.tree-score { margin-top: 6px; font-size: 13px; color: var(--muted, #8e8e93); }
+.tree-big { width: 220px; height: 230px; margin: 4px auto 6px; }
+.tree-bar { margin: 12px 0; }
+.tree-track { height: 8px; border-radius: 99px; background: var(--fill); overflow: hidden; margin-top: 6px; }
+.tree-track i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #30d158, #64d2ff); transition: width .8s cubic-bezier(.2,.8,.2,1); }
+@keyframes treeGrow { from { transform: scale(.9); opacity: .3; } to { transform: scale(1); opacity: 1; } }
+@keyframes treeSway { 0%, 100% { transform: rotate(-.6deg); } 50% { transform: rotate(.6deg); } }
+@media (prefers-reduced-motion: reduce) { .tree-svg, .tree-sway { animation: none !important; } }

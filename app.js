@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.13.7';
+const APP_VERSION = '1.14.0';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -3588,6 +3588,80 @@ function showSplash() {
   document.body.appendChild(d);
   setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 500); }, 1000);
 }
+
+/* ---------------- Dein Baum: wächst aus deinen echten Gewohnheiten ---------------- */
+/** Punkte 0–100 aus drei Bereichen. Fehlt ein Bereich, zählen die anderen. */
+function treeScore() {
+  const t = today(), from = addDays(t, -13);
+  const cm = monthStats(curMonth());
+  const fin = cm.income > 0 ? clamp((cm.income - cm.expense) / cm.income * 100 * 5, 0, 100) : null; // 20 % Sparquote = volle Punkte
+  const hr = habitsRate(from, t);
+  const hab = hr == null ? null : hr * 100;
+  const days = new Set(S.journal.filter(j => j.date >= from && j.date <= t).map(j => j.date)).size;
+  const jr = clamp(days / 7 * 100, 0, 100); // an 7 von 14 Tagen = volle Punkte
+  const parts = [['fin', 'Finanzen', fin, .4], ['hab', 'Gewohnheiten', hab, .35], ['jr', 'Tagebuch', jr, .25]].filter(p => p[2] != null);
+  if (!parts.length) return null;
+  const w = sum(parts, p => p[3]);
+  const score = Math.round(parts.reduce((a, p) => a + p[2] * p[3], 0) / w);
+  return { score, parts: parts.map(p => ({ key: p[0], label: p[1], v: Math.round(p[2]) })) };
+}
+function treeStage(s) {
+  if (s < 10) return ['Samen', 'Ein Samen wartet auf den ersten Schritt.'];
+  if (s < 30) return ['Keimling', 'Du bist gestartet. Jeder Eintrag zählt.'];
+  if (s < 55) return ['Junger Baum', 'Er wächst gleichmäßig. Weiter so.'];
+  if (s < 80) return ['Starker Baum', 'Du bist im Rhythmus, das sieht man.'];
+  return ['Großer Baum', 'Dein Alltag trägt Früchte.'];
+}
+function treeSvg(score, date) {
+  const m = +date.slice(5, 7);
+  const season = [[7, 8, 9, 10], [4, 5, 6], [], []];
+  const pal = m >= 3 && m <= 5 ? ['#7bd389', '#4cc76b', '#a6e3a1']
+    : m >= 6 && m <= 8 ? ['#2fb35c', '#4cc76b', '#8fe388']
+    : m >= 9 && m <= 11 ? ['#ff9f0a', '#ff6b2c', '#e0a526']
+    : ['#9bb8a8', '#7fa796', '#b9cfc3'];
+  const ground = `<ellipse cx="120" cy="238" rx="64" ry="5" class="tree-ground"/>`;
+  if (score < 8) {
+    return `<svg class="tree-svg" viewBox="0 0 240 250" aria-hidden="true">${ground}<g class="tree-g tree-sway"><line x1="120" y1="236" x2="120" y2="210" stroke-width="4"/></g><circle cx="120" cy="206" r="7" fill="${pal[1]}"/><circle cx="111" cy="214" r="4" fill="${pal[0]}"/><circle cx="129" cy="214" r="4" fill="${pal[2]}"/></svg>`;
+  }
+  const depth = clamp(Math.round(1 + score / 16), 1, 6);
+  let seed = 7 + score;
+  const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  const trunk = 30 + score * 0.36;
+  const lines = [], tips = [];
+  const branch = (x, y, len, ang, d, w) => {
+    const x2 = x + Math.sin(ang) * len, y2 = y - Math.cos(ang) * len;
+    lines.push(`<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke-width="${w.toFixed(2)}"/>`);
+    if (d <= 0) { tips.push([x2, y2]); return; }
+    const sp = 0.38 + rnd() * 0.22;
+    branch(x2, y2, len * (0.66 + rnd() * 0.08), ang - sp, d - 1, w * 0.7);
+    branch(x2, y2, len * (0.64 + rnd() * 0.08), ang + sp * (0.85 + rnd() * 0.3), d - 1, w * 0.7);
+    if (d >= 3 && rnd() > 0.5) branch(x2, y2, len * 0.5, ang + (rnd() - 0.5) * 0.4, d - 2, w * 0.55);
+  };
+  branch(120, 234, trunk, 0, depth, 9);
+  const r = (4.2 + score / 45).toFixed(1);
+  const leaves = tips.map(([x, y], i) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${pal[i % 3]}" class="lf"/>`).join('');
+  return `<svg class="tree-svg" viewBox="0 0 240 250" aria-hidden="true">${ground}<g class="tree-g tree-sway">${lines.join('')}</g><g class="tree-leaves">${leaves}</g></svg>`;
+}
+function treeCardHtml() {
+  const r = treeScore(), s = r ? r.score : 0;
+  const [stage, line] = r ? treeStage(s) : ['Samen', 'Schreib einen Tagebucheintrag oder buche eine Ausgabe. Dann wächst dein Baum.'];
+  return `<div class="card tap tree-card" data-act="treeDetail">
+    <div class="between"><span class="card-t">Dein Baum</span><span class="chev">${ic('chevR', 'sm')}</span></div>
+    <div class="tree-row"><div class="tree-wrap">${treeSvg(s, today())}</div>
+      <div class="tree-txt"><div class="tree-stage">${stage}</div><div class="small muted">${line}</div><div class="tree-score">${s} von 100 Punkten</div></div></div></div>`;
+}
+function treeDetailHtml() {
+  const r = treeScore(), s = r ? r.score : 0;
+  const [stage, line] = r ? treeStage(s) : ['Samen', 'Noch keine Daten. Ein Tagebucheintrag oder eine Ausgabe reicht für den Anfang.'];
+  const parts = r ? r.parts : [];
+  const bars = parts.map(p => `<div class="tree-bar"><div class="between"><span>${p.label}</span><span class="num">${p.v} %</span></div><div class="tree-track"><i style="width:${p.v}%"></i></div></div>`).join('');
+  return `<div class="tree-big">${treeSvg(s, today())}</div>
+    <div class="tree-stage center">${stage}</div><p class="small muted center">${line}</p>
+    <div class="card">${bars || '<div class="small muted">Noch keine Daten.</div>'}</div>
+    <p class="small muted">Dein Baum wächst aus drei Bereichen: Finanzen (40 %, eine Sparquote von 20 % ergibt volle Punkte), Gewohnheiten (35 %, letzte 14 Tage) und Tagebuch (25 %, an 7 von 14 Tagen). Fehlt ein Bereich, zählen die anderen.</p>
+    <p class="small muted">Es gibt kein Minus. Pausierst du eine Weile, wächst er einfach nicht weiter.</p>`;
+}
+A.treeDetail = () => openSheet({ title: 'Dein Baum', body: treeDetailHtml(), tall: false });
 /* =========================================================
    ICONS: Emojis werden durch einheitliche Linien-Icons ersetzt
    (wirkt hochwertiger und passt zum Apple-Stil).
@@ -3827,7 +3901,7 @@ VIEWS.heute = () => {
     <button data-act="addTx" data-type="income"><span class="q-ico" style="background:var(--green-ui)">${ic('plus')}</span>Einnahme</button>
     <button data-act="addJournal"><span class="q-ico" style="background:var(--indigo)">${ic('edit')}</span>Tagebuch</button>
     <button data-act="addTask"><span class="q-ico" style="background:var(--orange-ui)">${ic('check')}</span>Aufgabe</button></div>`;
-  h += backupBannerHtml() + ringsHtml() + availCardHtml() + reviewCardHtml();
+  h += backupBannerHtml() + treeCardHtml() + ringsHtml() + availCardHtml() + reviewCardHtml();
   if (!S.transactions.length && !S.journal.length && !S.habits.length) {
     h += `<div class="card"><div class="card-t">Starte hier</div><p class="small muted" style="margin:6px 0 12px">Eine Ausgabe oder ein Tagebucheintrag reicht für den Anfang.</p>
       <div class="rings-btns"><button class="btn tinted small" data-act="quickEntry">Ausgabe erfassen</button><button class="btn tinted small" data-act="addJournal">Tagebuch</button></div></div>`;
