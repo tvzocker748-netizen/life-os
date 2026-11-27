@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.13.5';
+const APP_VERSION = '1.13.6';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -3316,8 +3316,29 @@ function renderProfil() {
 A.pfGo = () => { PF.i = 1; PF.dir = 1; PF.err = ''; renderProfil(); };
 A.pfBack = () => { PF.i = Math.max(0, PF.i - 1); PF.dir = -1; PF.err = ''; renderProfil(); };
 A.pfPick = d => {
-  PF.d[d.f] = d.k; PF.err = ''; renderProfil();
+  PF.d[d.f] = d.k; PF.err = '';
+  // Nur die Auswahl umschalten: die Seite bleibt stehen, Animationen laufen nicht neu
+  const root = document.getElementById('profil');
+  if (!root) return;
+  root.querySelectorAll(`[data-act="pfPick"][data-f="${d.f}"]`).forEach(b => {
+    const on = b.dataset.k === d.k;
+    b.classList.toggle('on', on);
+    const r = b.querySelector('.pf-rad'); if (r) r.innerHTML = on ? ic('check') : '';
+  });
+  const inp = root.querySelector('#pfIn');
+  if (inp && d.k === 'k') inp.value = '';
+  const err = root.querySelector('.pf-err'); if (err) err.textContent = '';
 };
+/* Tippt man in ein Feld, bei dem „Keine Angabe“ gewählt war, wird die Auswahl aufgehoben */
+document.addEventListener('input', e => {
+  if (!PF.on || e.target.id !== 'pfIn') return;
+  const step = PF_STEPS[PF.i];
+  if ((step === 'height' || step === 'weight') && PF.d[step] === 'k') {
+    PF.d[step] = '';
+    const b = document.querySelector(`#profil [data-act="pfPick"][data-f="${step}"]`);
+    if (b) { b.classList.remove('on'); const r = b.querySelector('.pf-rad'); if (r) r.innerHTML = ''; }
+  }
+});
 function pfReadInput() {
   const inp = document.getElementById('pfIn');
   if (!inp) return;
