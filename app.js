@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.4.2';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -2869,6 +2869,7 @@ const ICON_PATHS = {
   flask: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/>',
   gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v9h14v-9M12 8v13M12 8c-2-4-6-4-6-1s6 1 6 1M12 8c2-4 6-4 6-1s-6 1-6 1"/>',
   coin: '<circle cx="12" cy="12" r="9"/><path d="M14.5 9.5a3 3 0 1 0 0 5"/>',
+  wallet: '<path d="M4 7h14a3 3 0 0 1 3 3v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M4 7V6a2 2 0 0 1 2-2h11"/><circle cx="16" cy="13" r="1.2"/>',
   sparkle: '<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>',
   house: '<path d="M4 11l8-7 8 7v9h-5v-6h-6v6H4z"/>',
   cart: '<path d="M3 4h2l2.5 11h10L20 7H6.5M9 19.5a.5.5 0 1 0 0 .1M17 19.5a.5.5 0 1 0 0 .1"/>',
@@ -2914,7 +2915,7 @@ const EMO_ICON = {
   '📈': 'chart', '📉': 'chart', '🧾': 'receipt', '💡': 'bulb', '🔥': 'flame',
   '📋': 'clipboard', '📝': 'pencil', '✍': 'pencil', '⚖': 'scale', '🛡': 'shield', '🛟': 'shield',
   '🧭': 'compass', '⏰': 'clock', '⏳': 'clock', '🧪': 'flask', '🎁': 'gift',
-  '💶': 'coin', '💵': 'coin', '🪙': 'coin', '🐖': 'coin', '🐷': 'coin',
+  '💶': 'wallet', '💵': 'wallet', '🪙': 'coin', '🐖': 'coin', '🐷': 'coin',
   '🧠': 'sparkle', '🧩': 'sparkle', '💎': 'sparkle', '🎉': 'sparkle', '✨': 'sparkle', '👋': 'sparkle',
   '🏠': 'house', '🏡': 'house', '🛒': 'cart', '🍽': 'fork', '🚗': 'car', '🩺': 'pulse',
   '👕': 'bag', '🧺': 'bag', '🎟': 'ticket', '✈': 'plane', '📚': 'book', '🎓': 'cap',
