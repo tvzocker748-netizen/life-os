@@ -5,7 +5,7 @@
    ========================================================= */
 'use strict';
 
-const APP_VERSION = '1.13.2';
+const APP_VERSION = '1.13.3';
 
 /* ---------------- Hilfsfunktionen ---------------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -491,6 +491,7 @@ function openSheet(o) {
   return sh;
 }
 window.addEventListener('popstate', () => {
+  if (typeof PF !== 'undefined' && PF.on) { history.pushState({ profil: true }, ''); return; } // Zurück-Geste bleibt im Profil
   if (ignorePop > 0) { ignorePop--; return; }
   const top = sheetStack[sheetStack.length - 1];
   if (top) {
@@ -3302,6 +3303,7 @@ function renderProfil() {
   let el = document.getElementById('profil');
   if (!el) { el = document.createElement('div'); el.id = 'profil'; document.body.appendChild(el); }
   el.hidden = !PF.on;
+  document.body.classList.toggle('noscroll', PF.on); // Hintergrund nicht mitscrollen
   el.innerHTML = PF.on ? profilHtml() : '';
   const num = el.querySelector('.le-big');
   if (num && PF.on && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
